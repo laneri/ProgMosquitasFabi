@@ -263,5 +263,8 @@ int main(){
 	fclose(out1);
 	fclose(out2);
 	fclose(out3);
+	
+	free(mosquita);
+	free(tach);
 
 }//cierro main
