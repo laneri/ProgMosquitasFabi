@@ -263,7 +263,11 @@ int main(){
 	fprintf(out2,"\t %d\t %d\t %d\t %d\t %d\t %d\n",tiempo,adn1,adn2,adn3,adn4,adn5);
 
 	}// end for time
-
+	
+	//libero memoria
+	free(tach);
+	free(mosquita);
+	
 	fclose(out1);
 	fclose(out2);
 	fclose(out3);
