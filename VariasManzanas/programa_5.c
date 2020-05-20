@@ -42,7 +42,7 @@ struct mosquitos M();
 Para poder comparar con los datos extraídos del programa de Fabiana, este programa calcula la población de mosquitas correspondiente a una manzana con número de hembras N = 5 y condiciones iniciales dadas por 
 */
 //	printf("nro de hembras\t VoM\t tacho\t DdV\t DdM\n");
-/*for(int j=1;j<=nmanzanas;j++){
+for(int j=1;j<=nmanzanas;j++){
 	for(int i=1;i<=N;i++){
         M.Numanzana[j]=j;    
 		M.VoM[i] = 1;
@@ -53,7 +53,7 @@ Para poder comparar con los datos extraídos del programa de Fabiana, este progr
 		printf("\t%d\t %d\t %d\t %d\t %d\n",i,M.VoM[i],M.tacho[i],M.DdV[i],M.DdM[i]);
         }
             
- }*/
+ }
 	
 
 
