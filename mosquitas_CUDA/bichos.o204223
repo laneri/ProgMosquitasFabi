@@ -1,0 +1,165 @@
+Allocated GPU(s) with id(s):  1
+Setting CUDA_VISIBLE_DEVICES=1
+Setting NV_GPU=1
+mosquitas iniciales
+#dia=0, #N=10
+estado	edad	manzana
+0	10		6
+0	3		5
+0	19		5
+0	7		2
+0	17		1
+0	29		7
+0	23		9
+0	30		6
+0	29		6
+0	4		6
+
+mosquitas despues de reproducirse
+#dia=0, #N=17
+estado	edad	manzana
+0	10		6
+0	3		5
+0	19		5
+0	7		2
+0	17		1
+0	29		7
+0	23		9
+0	30		6
+0	29		6
+0	4		6
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+
+mosquitas muertas con alguna probabilidad
+#dia=0, #N=17
+estado	edad	manzana
+0	10		6
+0	3		5
+0	19		5
+0	7		2
+0	17		1
+0	29		7
+0	23		9
+0	30		6
+0	29		6
+0	4		6
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+
+mosquitas muertas por vejez
+#dia=0, #N=17
+estado	edad	manzana
+0	10		6
+0	3		5
+0	19		5
+0	7		2
+0	17		1
+0	29		7
+0	23		9
+1	30		6
+1	29		6
+0	4		6
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+0	0		1
+
+mosquitas envejecidas un día
+#dia=0, #N=17
+estado	edad	manzana
+0	11		6
+0	4		5
+0	20		5
+0	8		2
+0	18		1
+0	30		7
+0	24		9
+1	31		6
+1	30		6
+0	5		6
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+
+removidas las muertas
+#dia=0, #N=15
+estado	edad	manzana
+0	11		6
+0	4		5
+0	20		5
+0	8		2
+0	18		1
+0	30		7
+0	24		9
+0	5		6
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+0	1		1
+
+estadisticas
+hay 15 mosquitas en total
+hay 0 en la manzana 0
+hay 8 en la manzana 1
+hay 1 en la manzana 2
+hay 0 en la manzana 3
+hay 0 en la manzana 4
+hay 2 en la manzana 5
+hay 2 en la manzana 6
+hay 1 en la manzana 7
+hay 0 en la manzana 8
+hay 1 en la manzana 9
+
+
+hay 0 con edad 0
+hay 7 con edad 1
+hay 0 con edad 2
+hay 0 con edad 3
+hay 1 con edad 4
+hay 1 con edad 5
+hay 0 con edad 6
+hay 0 con edad 7
+hay 1 con edad 8
+hay 0 con edad 9
+hay 0 con edad 10
+hay 1 con edad 11
+hay 0 con edad 12
+hay 0 con edad 13
+hay 0 con edad 14
+hay 0 con edad 15
+hay 0 con edad 16
+hay 0 con edad 17
+hay 1 con edad 18
+hay 0 con edad 19
+hay 1 con edad 20
+hay 0 con edad 21
+hay 0 con edad 22
+hay 0 con edad 23
+hay 1 con edad 24
+hay 0 con edad 25
+hay 0 con edad 26
+hay 0 con edad 27
+hay 0 con edad 28
+hay 0 con edad 29
+hay 1 con edad 30
