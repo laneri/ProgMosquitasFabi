@@ -1,14 +1,18 @@
 Cada mosquita en el programa tiene definido:
 su estado               -> 0(vivo) o 1(muerto)
 su edad                 -> entre 0 y 30 dias (aleatorio) (es decir, tenemos huevo,larva,pupa,adulta)
-la manzana en la que vive-> entre 0 y 10 (aleatorio)
+tacho en el que vive    -> (aleatorio)
 
-condiciones iniciales: dia=0 y N=10 (# de mosquitas)
+condiciones iniciales: dia=0 y N=5 (# de mosquitas)
 
-calcula por dia:
+La función test1() calcula por dia:
 1) el número total de mosquitas después de reproducirse
 2) el número de mosquitas que se mueren con alguna probabilidad
 3) el número de mosquitas que se mueren por viejas
 luego
-4) se envejece un día la edad de las mosquitas
-5) se remueven las mosquitas muertas
+4) el número de mosquitas que quedan después de descacharrar un tacho
+5) se envejece un día la edad de las mosquitas
+6) se remueven las mosquitas muertas
+
+La función test2() calcula la población de mosquitas de todos los tachos en un año (400 días)
+
