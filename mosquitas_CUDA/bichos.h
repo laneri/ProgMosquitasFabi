@@ -45,7 +45,6 @@ __global__ void reproducir_kernel(int *estado, int *edad, int *tacho, int *N_mob
 	
 	if(id<N){
 		if(estado[id] == ESTADOVIVO && edad[id] > tpupad){
-			if(edad[id]%tovip == 0){
 		 	RNG philox;   //counter-based random number generator      
 	    		RNG::ctr_type c={{}};//counter
 	    		RNG::key_type k={{}};//key
@@ -58,7 +57,7 @@ __global__ void reproducir_kernel(int *estado, int *edad, int *tacho, int *N_mob
 	     		double azar=(u01_closed_closed_32_53(r[0]));//numero random entre [0,1]
 
 			int tach=tacho[id];	     		
-	     		if(azar<0.75) atomicAdd(nacidos+tach,NUMERODEHUEVOS);}
+	     		if(azar<0.75) atomicAdd(nacidos+tach,NUMERODEHUEVOS);
 			}
 	}
 };
@@ -88,7 +87,7 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho, int *N_mobil,in
 		double prob_morir=edad[id]*1.0/MAXIMAEDAD;//huevos-larvas-pupas-adultas
 
 		//MORTALIDADADES VARIAS (morirse antes de ser vieja)
-		if (estado[id] == ESTADOVIVO && edad[id] < tpupad){ //muerte de huevos+larvas+pupas
+		if (estado[id] == ESTADOVIVO && edad[id] < tpupad){ 
 		  	 if (azar < prob_morir)estado[id]=ESTADOMUERTO;} 
  
 	}
@@ -102,20 +101,8 @@ __global__ void matar_viejos_kernel(int *estado, int *edad, int *tacho, int *N_m
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 
-	if(id<N){	
-		RNG philox;   //counter-based random number generator      
-	    	RNG::ctr_type c={{}};//counter
-	    	RNG::key_type k={{}};//key
-	    	RNG::ctr_type r;
-	    	k[0]=id; //user supplied seed
-	    	c[1]=dia;// some loop-dependent application variable
-	    	c[0]=SEMILLAGLOBAL; // another loop-dependent application variable 
-		
-    		r = philox(c, k); //On each iteration,r contains an array of 2 32-bit random values that will not be repeated by any other call to rng as long as c and k are not reused.
-
-     		int tDvida= 28 + (u01_closed_closed_32_53(r[0]))*2;//tiempo de vida entre 28 y 30 dias 	
-		if (estado[id] == ESTADOVIVO && edad[id] >= tDvida){ 
-		estado[id]=ESTADOMUERTO;}
+	if(id<N){
+		if(edad[id]>=28)estado[id]=ESTADOMUERTO;
 	}
 };
 
@@ -141,7 +128,7 @@ __global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *N_
 		if(dia%7 == 0 && dia > 150 && dia < 240){
   			for(int itach=0;itach < descach;itach++){
     			int ntach=azar*NUMEROTACHOS;
-  				if (estado[id] == ESTADOVIVO && edad[id] < tpupad && tacho[id] == ntach)estado[id]=ESTADOMUERTO;}}    	
+  				if (tacho[id] == ntach)estado[id]=ESTADOMUERTO;}}    	
  	}
 };
 
@@ -162,8 +149,9 @@ struct bichos{
 
 	thrust::device_vector<int> estado;  // Vivo o Muerto 0/1
 	thrust::device_vector<int> edad;    // 0 a MAXIMAEDAD
-	thrust::device_vector<int> tacho; // 0 a NUMEROTACHOS
+	thrust::device_vector<int> tacho;   // 0 a NUMEROTACHOS
 	thrust::device_vector<int> nacidos; // nacidos por tacho
+	thrust::device_vector<int> manzana; //manzana
 
 	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
 	
@@ -173,6 +161,7 @@ struct bichos{
 	int *raw_estado;
 	int *raw_N_mobil;
 	int *raw_nacidos;
+	int *raw_manzana;
 			
 	// constructor: N_ = bichos iniciales
 	bichos(int N_)
@@ -181,8 +170,12 @@ struct bichos{
 		// alocamos el maximo posible
 		edad.resize(MAXIMONUMEROBICHOS);	
 		tacho.resize(MAXIMONUMEROBICHOS);	
-		estado.resize(MAXIMONUMEROBICHOS);	
-		
+		estado.resize(MAXIMONUMEROBICHOS);
+
+		//manzana	
+		manzana.resize(MAXIMONUMEROBICHOS);
+		fill(manzana.begin(),manzana.end(),0);
+
 		// un entero en device
 		N_mobil.resize(1);
 		
@@ -197,14 +190,18 @@ struct bichos{
 		raw_edad=thrust::raw_pointer_cast(edad.data());
 		raw_tacho=thrust::raw_pointer_cast(tacho.data());
 		raw_estado=thrust::raw_pointer_cast(estado.data());
+		raw_manzana=thrust::raw_pointer_cast(manzana.data());
 		raw_N_mobil=thrust::raw_pointer_cast(N_mobil.data());
 		raw_nacidos=thrust::raw_pointer_cast(nacidos.data());
 		
 		// inicializacion totalmente random
+
 		for(int i=0;i<N_;i++){
 			edad[i]= rand()%MAXIMAEDAD;  	// edad de la mosquita i entre 0 y 30
-			tacho[i]=rand()%NUMEROTACHOS;//tacho en la que se encuentra la mosquita i entre 0 y NUMEROTACHOS
+			tacho[i]=rand()%NUMEROTACHOS;   //tacho en la que se encuentra la mosquita i entre 0 y NUMEROTACHOS
 			estado[i]=0; 			//todas las mosquitas vivas inicialmente
+			int j=tacho[i];
+			manzana[j]++;
 		}		
 	};
 
@@ -244,9 +241,9 @@ struct bichos{
 		for(int m=0;m<NUMEROTACHOS;m++){
 			//std::cout << "listo nacidos " << std::endl; 
 			int nuevos=nacidos[m];
-			thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);		
-			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		
-			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m);
+			thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);//todos vivos(0) 		
+			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);	//todos nacen el dia 0	
+			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); //en el tacho
 			index+=nuevos;		
 		}
 	
@@ -330,7 +327,7 @@ struct bichos{
 		for(int m=0;m<NUMEROTACHOS;m++){
 			std::cout << "hay " << 
 			thrust::count_if(tacho.begin(),tacho.begin()+N,iguala(m))
-			<< " en la tacho " << m << std::endl;				
+			<< " en el tacho " << m << std::endl;				
 		}
 		std::cout << "\n" << std::endl;
 
@@ -339,7 +336,18 @@ struct bichos{
 			thrust::count_if(edad.begin(),edad.begin()+N,iguala(i))
 			<< " con edad " << i << std::endl;				
 		}
-		// etc....
+
+		std::cout << "\n" << std::endl;
+
+		std::cout << "hay " << NUMEROTACHOS << " tachos en total" << std::endl;
+
+		for(int i=0;i<NUMEROMANZANAS;i++){
+			std::cout << "hay " << 
+			thrust::count_if(manzana.begin(),manzana.begin()+NUMEROTACHOS,iguala(i))
+			<< " en la manzana " << i << std::endl;				
+		}
+
+
 	}
 
 	// Numero de bichos vivos
