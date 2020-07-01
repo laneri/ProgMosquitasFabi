@@ -25,7 +25,7 @@ using namespace std;
 // Reproduccion, Muerte, Envejecimiento, Remocion de muertos 
 int test1(int argc, char **argv)
 {
-	int Ninicial=5;
+	int Ninicial=100;
 	bichos mosquitas(Ninicial);
 
 	std::cout << "mosquitas iniciales" << std::endl;
@@ -57,6 +57,7 @@ int test1(int argc, char **argv)
 	mosquitas.envejecer();
 	mosquitas.imprimir(dia);
 
+
 	// este paso se debe hacer despues de los nacimientos y las muertes
 	std::cout << "removidas las muertas" << std::endl;
 	mosquitas.recalcularN();
@@ -76,13 +77,7 @@ int test2(int argc, char **argv){
         outfile.open("Suma_poblaciones_GPU.dat");
 
 	int Ndias=400;
-	//int Manzana[NUMEROMANZANAS][Ndias];
-
-	//for(int i=0;i<NUMEROMANZANAS;i++){for(int j=0;j<Ndias;j++){Manzana[i][j]=0;}}
-
-	//int k=0;
-	//while(k < NUMEROMANZANAS){
-	int Ninicial=10;					//nro. inicial de mosquitos 
+	int Ninicial=5;					//nro. inicial de mosquitos 
 	bichos mosquitas(Ninicial);	
 
 		for(int dia=0;dia<Ndias;dia++){
@@ -93,13 +88,21 @@ int test2(int argc, char **argv){
 			else{
 			outfile << "extincion de bichos"<< endl;
 			exit(0);}
-		//Manzana[k][dia]=vivas;
+
+/*	if(dia==200){
+	//mosquitas.imprimir(dia);
+	cout << "estadisticas" << endl;
+	mosquitas.imprimir_estadisticas();}
+*/
+
+	if(dia==399){
+	//mosquitas.imprimir(dia);
+	cout << "\n Estadisticas" << endl;
+	mosquitas.imprimir_estadisticas();}
+
+
 		}//cierro dias
-	//k++;
-	//}
-
 	return 0;
-
    // close the opened file.
    outfile.close();
 };
@@ -107,7 +110,7 @@ int test2(int argc, char **argv){
 int main(int argc, char **argv)
 {
 //	test1(argc,argv);
-//	printf("Cálculo de la población de mosquitos en %d manzanas\n",NUMEROTACHOS);	
+	printf("Cálculo de la población de mosquitos en %d manzanas\n",NUMEROTACHOS);	
   	gpu_timer Reloj_GPU;
 	Reloj_GPU.tic();
 	test2(argc,argv);
@@ -115,3 +118,4 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
