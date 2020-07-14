@@ -1,35 +1,9 @@
 #include <Random123/philox.h> // philox headers
 #include <Random123/u01.h>    // to get uniform deviates [0,1]
 #include <cmath>
+#include "parametros.h"
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
-//etapas de la mosquita: huevo -> larva (5días) -> pupa (7días)-> mosquita adulta (vive 11 dias)
-
-// macros utiles para CPU y GPU, y hacer desaparecer numeros magicos
-#define MAXIMAEDAD		31 	//dias que vive la mosquita	
-#define NUMEROTACHOS		20	
-#define NUMEROMANZANAS		20	
-#define MAXIMONUMEROBICHOS	80000 	//maximo de huevos por tacho
-#define NUMERODEESTADOS		2	//vivo(0) o muerto (1)
-#define NUMERODEHUEVOS		10 	//número de huevos por oviposicion	
-
-#define ESTADOMUERTO	1
-#define ESTADOVIVO	0
-
-#define morad 0.01 	//mortalidad diaria adultas
-#define moracu 0.03	//morhue+morlar+morpup;
-#define morpupad 0.17	//pupas que no se vuelven adultas
-#define tpupad1 9	//pupas se vuelven adultas a los 9 días en verano (desde oviposicion)****
-#define tpupad2 13	//pupas se vuelven adultas a los 13 dias en otoño y primavera****
-#define tpupad3 17  	//pupas se vuelven adultas a los 17 dias en invierno****
-#define tovip1 2	//tiempo entre dos oviposiciones (T=30)
-#define tovip2a 3  	//tiempo entre dos oviposiciones (T=25)
-#define tovip2b 4   	//tiempo entre dos oviposiciones (T=25)
-#define tovip3 29	//tiempo ente dos oviposiciones (T=18)
-#define prop 0.6   	//efectividad de la propaganda
-
-
-// cambiar si se quiere tener distintos numeros cada corrida
 #define SEMILLAGLOBAL	12345
 
 
@@ -44,20 +18,9 @@ __global__ void reproducir_kernel(int *estado, int *edad, int *tacho, int *N_mob
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 	
 	if(id<N){
-		if(estado[id] == ESTADOVIVO && edad[id] > tpupad){
-		 	RNG philox;   //counter-based random number generator      
-	    		RNG::ctr_type c={{}};//counter
-	    		RNG::key_type k={{}};//key
-	    		RNG::ctr_type r;
-	    		k[0]=id; //user supplied seed
-	    		c[1]=dia;// some loop-dependent application variable
-	    		c[0]=SEMILLAGLOBAL; // another loop-dependent application variable 
-		
-    			r = philox(c, k); //On each iteration,r contains an array of 2 32-bit random values that will not be repeated by any other call to rng as long as c and k are not reused.
-	     		double azar=(u01_closed_closed_32_53(r[0]));//numero random entre [0,1]
-
+		if(estado[id] == ESTADOVIVO && edad[id] > tpupad && edad[id]%tovip == 0){
 			int tach=tacho[id];	     		
-	     		if(azar<0.75) atomicAdd(nacidos+tach,NUMERODEHUEVOS);
+	     		atomicAdd(nacidos+tach,NUMERODEHUEVOS);
 			}
 	}
 };
@@ -73,62 +36,52 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho, int *N_mobil,in
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(id<N){		
-	 	RNG philox;   //counter-based random number generator      
-	    	RNG::ctr_type c={{}};//counter
-	    	RNG::key_type k={{}};//key
+	 	RNG philox;       
+	    	RNG::ctr_type c={{}};
+	    	RNG::key_type k={{}};
 	    	RNG::ctr_type r;
-	    	k[0]=id; //user supplied seed
-	    	c[1]=dia;// some loop-dependent application variable
-	    	c[0]=SEMILLAGLOBAL; // another loop-dependent application variable 
+	    	k[0]=id; 
+	    	c[1]=dia;
+	    	c[0]=SEMILLAGLOBAL; 
 		
-    		r = philox(c, k); //On each iteration,r contains an array of 2 32-bit random values that will not be repeated by any other call to rng as long as c and k are not reused.
+    		r = philox(c, k); 
 
-     		double azar=(u01_closed_closed_32_53(r[0]));//numero random entre [0,1]
-		double prob_morir=edad[id]*1.0/MAXIMAEDAD;//huevos-larvas-pupas-adultas
+     		double azar=(u01_closed_closed_32_53(r[0]));
+		//double prob_morir=edad[id]*1.0/MAXIMAEDAD;
 
 		//MORTALIDADADES VARIAS (morirse antes de ser vieja)
-		if (estado[id] == ESTADOVIVO && edad[id] < tpupad){ 
-		  	 if (azar < prob_morir)estado[id]=ESTADOMUERTO;} 
+		//if (estado[id] == ESTADOVIVO && edad[id] < tpupad){ 
+		//  	 if (azar < prob_morir)estado[id]=ESTADOMUERTO;} 
+		if (estado[id] == ESTADOVIVO && edad[id] < tpupad){if(azar < moracu)estado[id]=ESTADOMUERTO;}
+		if (estado[id] == ESTADOVIVO && edad[id] == tpupad){if(azar < morpupad)estado[id]=ESTADOMUERTO;}
+		if (estado[id] == ESTADOVIVO && edad[id] > tpupad){if(azar < morad)estado[id]=ESTADOMUERTO;} 
  
 	}
 };
 
 
 //muerte de las mosquitas por vejez
-__global__ void matar_viejos_kernel(int *estado, int *edad, int *tacho, int *N_mobil,int dia)
+__global__ void matar_viejos_kernel(int *estado, int *edad, int *tacho, int *TdV,int *N_mobil,int dia)
 {
 
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(id<N){
-		if(edad[id]>=28)estado[id]=ESTADOMUERTO;
+		if(estado[id]==ESTADOVIVO && edad[id]>=TdV[id])estado[id]=ESTADOMUERTO;
 	}
 };
 
-__global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *N_mobil,int tpupad,int dia, int descach)
+//muerte de los acuáticos ( < 17 días) por descacharrado de los tachos
+
+__global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *N_mobil,int tpupad,int dia, int ntach)
 {
 
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(id<N){	
-		RNG philox;   //counter-based random number generator      
-	    	RNG::ctr_type c={{}};//counter
-	    	RNG::key_type k={{}};//key
-	    	RNG::ctr_type r;
-	    	k[0]=id; //user supplied seed
-	    	c[1]=dia;// some loop-dependent application variable
-	    	c[0]=SEMILLAGLOBAL; // another loop-dependent application variable 
-		
-    		r = philox(c, k); //On each iteration,r contains an array of 2 32-bit random values that will not be repeated by any other call to rng as long as c and k are not reused.
-	
-		double azar=(u01_closed_closed_32_53(r[0]));//numero random entre [0,1]
-
-		if(dia%7 == 0 && dia > 150 && dia < 240){
-  			for(int itach=0;itach < descach;itach++){
-    			int ntach=azar*NUMEROTACHOS;
-  				if (tacho[id] == ntach)estado[id]=ESTADOMUERTO;}}    	
+  		if (estado[id]==ESTADOVIVO && edad[id] < tpupad && tacho[id] == ntach)estado[id]=ESTADOMUERTO;    	
  	}
 };
 
@@ -151,6 +104,7 @@ struct bichos{
 	thrust::device_vector<int> edad;    // 0 a MAXIMAEDAD
 	thrust::device_vector<int> tacho;   // 0 a NUMEROTACHOS
 	thrust::device_vector<int> nacidos; // nacidos por tacho
+	thrust::device_vector<int> TdV; //tiempo de vida
 	thrust::device_vector<int> manzana; //manzana
 
 	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
@@ -161,6 +115,7 @@ struct bichos{
 	int *raw_estado;
 	int *raw_N_mobil;
 	int *raw_nacidos;
+	int *raw_TdV;
 	int *raw_manzana;
 			
 	// constructor: N_ = bichos iniciales
@@ -171,6 +126,7 @@ struct bichos{
 		edad.resize(MAXIMONUMEROBICHOS);	
 		tacho.resize(MAXIMONUMEROBICHOS);	
 		estado.resize(MAXIMONUMEROBICHOS);
+		TdV.resize(MAXIMONUMEROBICHOS);
 
 		//manzana	
 		manzana.resize(MAXIMONUMEROBICHOS);
@@ -190,6 +146,7 @@ struct bichos{
 		raw_edad=thrust::raw_pointer_cast(edad.data());
 		raw_tacho=thrust::raw_pointer_cast(tacho.data());
 		raw_estado=thrust::raw_pointer_cast(estado.data());
+		raw_TdV=thrust::raw_pointer_cast(TdV.data());
 		raw_manzana=thrust::raw_pointer_cast(manzana.data());
 		raw_N_mobil=thrust::raw_pointer_cast(N_mobil.data());
 		raw_nacidos=thrust::raw_pointer_cast(nacidos.data());
@@ -197,11 +154,12 @@ struct bichos{
 		// inicializacion totalmente random
 
 		for(int i=0;i<N_;i++){
-			edad[i]= rand()%MAXIMAEDAD;  	// edad de la mosquita i entre 0 y 30
-			tacho[i]=rand()%NUMEROTACHOS;   //tacho en la que se encuentra la mosquita i entre 0 y NUMEROTACHOS
-			estado[i]=0; 			//todas las mosquitas vivas inicialmente
+			edad[i]= rand()%5 + 12;  	// edad de la mosquita i entre 12 y 16 dias
+			tacho[i]=i;			// tacho en la que se encuentra la mosquita i 
+			estado[i]=0; 			// todas las mosquitas vivas inicialmente
+			TdV[i]=rand()%3 + 28;		// tiempo de vida de la mosquita i entre 28 y 30 dias
 			int j=tacho[i];
-			manzana[j]++;
+			manzana[j]++;			//para contar tachos en una manzana
 		}		
 	};
 
@@ -228,11 +186,10 @@ struct bichos{
 
 		int tovip=tiempo_entre_oviposiciones(dia);
 		int tpupad=tiempo_pupas_adultas(dia);
-		
+
 		// reproduce, calculando nacidos por tacho
 		reproducir_kernel<<<(N+256-1)/256,256>>>
 		(raw_estado,raw_edad,raw_tacho,raw_N_mobil, raw_nacidos, dia,tpupad,tovip);	
-
 
 		cudaDeviceSynchronize();
 
@@ -241,10 +198,13 @@ struct bichos{
 		for(int m=0;m<NUMEROTACHOS;m++){
 			//std::cout << "listo nacidos " << std::endl; 
 			int nuevos=nacidos[m];
-			thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);//todos vivos(0) 		
-			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);	//todos nacen el dia 0	
-			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); //en el tacho
+			if(tacho[m]+nacidos[m] < 800){ 						//cond. saturacion 
+			thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);	//todos vivos(0)	
+			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		//todos nacen el dia 0	
+			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	//en el tacho m
+			thrust::fill(TdV.begin()+index,TdV.begin()+index+nuevos,rand()%3+28); // con tiempo de vida 28 a 30
 			index+=nuevos;		
+			}
 		}
 	
 		// actualiza el numero de bichos si no se sobrepasa el maximo
@@ -272,16 +232,19 @@ struct bichos{
 	void matar_viejos(int dia){
 		int N=N_mobil[0];
 
-		matar_viejos_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia);		
+		matar_viejos_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_N_mobil, dia);		
 	};
 
 	//mortalidades por llegar a viejas 
 	void descacharrar_tacho(int dia){
 		int N=N_mobil[0];
 		int tpupad=tiempo_pupas_adultas(dia);
-		int descach=std::round(NUMEROTACHOS*prop);
+		int descach=std::round(NUMEROTACHOS*prop);//defino el nro. de tachos a descacharrar
 
-		descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil,tpupad, dia,descach);
+		if(dia%7 == 0 && dia > 150 && dia < 240){
+  			for(int itach=0;itach < descach;itach++){
+    			int ntach=rand()%NUMEROTACHOS;	//sorteo cuáles son esos tachos y se los paso al kernel
+		descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil,tpupad, dia,ntach);}} 
 	};
 
 	// reordenando para poner los muertos al fondo, podemos calcular el numero de vivos, y actualizar N_mobil
@@ -311,9 +274,9 @@ struct bichos{
 		int N=N_mobil[0];
 				
 		std::cout << "#dia=" << dia << ", #N=" << N_mobil[0] << "\n";
-		std::cout << "estado\tedad\ttacho\n";
+		std::cout << "estado\tedad\ttacho\tTdV\n";
 		for(int i=0;i<N;i++){
-			std::cout << estado[i] << "\t" << edad[i] << "\t" << tacho[i] << std::endl;
+			std::cout << estado[i] << "\t" << edad[i] << "\t" << tacho[i] << "\t" << TdV[i] << std::endl;
 		}
 		std::cout << std::endl;
 	};
@@ -354,7 +317,7 @@ struct bichos{
 	int vivos(){
 		return N_mobil[0];
 	};
-	//prestar atencion a orden!
+
 	void avanza_dia(int dia){
 		reproducir(dia); 		//nacimientos
 		matar(dia);			//mortalidades varias
@@ -365,4 +328,5 @@ struct bichos{
 	};
 
 };
+
 
