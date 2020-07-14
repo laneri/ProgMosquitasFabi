@@ -11,21 +11,46 @@
 
 #include "bichos.h"
 #include "gpu_timer.h"
+#include <stdio.h>
+#include <stdlib.h>
+
 
 using namespace std;
 
-//---------------------  Código para calcular la población de mosquitos en N manzanas  -----------------------
+int ND=400;			//número de dias 
 
-//************************************************************************************************************
-//                                                   GPU
+/*--------------------  Códigos para calcular la población total de mosquitas ---------------------
+
+Condición inicial para las mosquitas:
+- estado si vive (0) o muere (1) 
+- edad (dias).
+- tacho en el que vive.
+
+Archivo de salida "Poblaciones_GPU.dat" respectivamente
+Para cambiar número de manzanas ir al archivo parametros.h
+
+//*************************************************************************************************************
+/*					código para GPU
+
+Este código realiza el cálculo de las poblaciones de mosquitas directamente sobre las N manzanas durante el período de un año (400 días).
+
+- Inicialmente considera un número fijo de mosquitas (Ninicial) distribuidas de forma random en los tachos (NUMEROTACHOS). 
+- Las manzanas son independientes entre sí, es decir, un mosquito de una manzana no va a otra manzana a poner huevos.
+
+Para que se puedan comparar resultados con el código serial, es necesario tener en cuenta las siguientes relaciones para modificar parámetros (ver parametros.h)
+
+- (NUMERODEMAZANAS/NUMEROTACHOS)=5
+- NUMEROTACHOS=Ninicial
+- MAXIMONUMEROBICHOS = NUMEROMANZANAS*4000
+
+*/
 //*************************************************************************************************************
 
 // Este es un test detallado de las funciones de la clase bichos
 // Aqui esta desagregado lo que pasa con bichos en un dia
 // Reproduccion, Muerte, Envejecimiento, Remocion de muertos 
-int test1(int argc, char **argv)
+int test1()
 {
-	int Ninicial=100;
 	bichos mosquitas(Ninicial);
 
 	std::cout << "mosquitas iniciales" << std::endl;
@@ -49,7 +74,7 @@ int test1(int argc, char **argv)
 	mosquitas.matar_viejos(dia);
 	mosquitas.imprimir(dia);
 
-	std::cout << "mosquitas muertas por descacharrado" << std::endl;
+	std::cout << "mosquitas muertas por descacharrado de los tachos" << std::endl;
 	mosquitas.descacharrar_tacho(dia);
 	mosquitas.imprimir(dia);
 
@@ -57,12 +82,12 @@ int test1(int argc, char **argv)
 	mosquitas.envejecer();
 	mosquitas.imprimir(dia);
 
-
 	// este paso se debe hacer despues de los nacimientos y las muertes
 	std::cout << "removidas las muertas" << std::endl;
 	mosquitas.recalcularN();
 	mosquitas.imprimir(dia);
 
+	//cuántos mosquitos hay por edad, por tacho y cuántos tachos hay por manzana
 	std::cout << "estadisticas" << std::endl;
 	mosquitas.imprimir_estadisticas();
 
@@ -70,50 +95,61 @@ int test1(int argc, char **argv)
 };
 
 
-// este es un test de loop de tiempo, monitoreando #vivas
-int test2(int argc, char **argv){
+// Cálculo de toda la población de mosquitas vivas para 200 manzanas
+int testGPU(){
 
 	ofstream outfile;
-        outfile.open("Suma_poblaciones_GPU.dat");
+        outfile.open("Poblacion_total_GPU.dat");
 
-	int Ndias=400;
-	int Ninicial=5;					//nro. inicial de mosquitos 
-	bichos mosquitas(Ninicial);	
-
-		for(int dia=0;dia<Ndias;dia++){
-			mosquitas.avanza_dia(dia);
-			int vivas=mosquitas.vivos();
-			if(vivas>0)
+	bichos mosquitas(Ninicial);
+	
+	for(int dia=0;dia<ND;dia++){
+		mosquitas.avanza_dia(dia);
+		int vivas=mosquitas.vivos();
+		if(vivas>0)
 			outfile << dia << "\t" << vivas << endl;			
-			else{
+		else{
 			outfile << "extincion de bichos"<< endl;
-			exit(0);}
+			exit(0);			
+		}
 
+	//Descomentar si desea conocer el detalle de la población de mosquitos en un día determinado. 
+
+/*	if(dia==0){
+	//mosquitas.imprimir(dia);
+	cout << "estadisticas" << endl;
+	mosquitas.imprimir_estadisticas();}
+*/
 /*	if(dia==200){
 	//mosquitas.imprimir(dia);
 	cout << "estadisticas" << endl;
 	mosquitas.imprimir_estadisticas();}
 */
 
-	if(dia==399){
+/*	if(dia==399){
 	//mosquitas.imprimir(dia);
 	cout << "\n Estadisticas" << endl;
 	mosquitas.imprimir_estadisticas();}
+*/
+	}//cierro dias
 
-
-		}//cierro dias
 	return 0;
+
    // close the opened file.
    outfile.close();
 };
 
+
+
 int main(int argc, char **argv)
 {
-//	test1(argc,argv);
-	printf("Cálculo de la población de mosquitos en %d manzanas\n",NUMEROTACHOS);	
+
+	printf("Cálculo de la población de mosquitos para %d manzanas\n",NUMEROMANZANAS);
+
+	//test1(argc,argv);
   	gpu_timer Reloj_GPU;
 	Reloj_GPU.tic();
-	test2(argc,argv);
+	testGPU();
 	printf("Tiempo en GPU: %lf ms\n",Reloj_GPU.tac());
 
 	return 0;
