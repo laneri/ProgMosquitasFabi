@@ -1,13 +1,23 @@
-El código calcula la población de mosquitas en 20 manzanas. 
+El código calcula la población de mosquitas en 20 manzanas, considerando 1 tacho por manzana (es decir, 20 tachos) y una mosquita por tacho. 
 
-Cada mosquita i en el programa tiene definido:
+en el archivo bichos.h:
+- Cada mosquita i en el programa tiene definido:
 su estado               -> 0(vivo) o 1(muerto)
 su edad                 -> entre 12 y 16 dias 
 tacho en el que vive    -> i
-tiempo de vida		-> entre 28 y 30 dias
-manzana 		-> 1 tacho por manzana
+tiempo de vida		      -> entre 28 y 30 dias
+manzana 		            -> 1 tacho por manzana
 
-La función test() calcula por dia:
+Considera
+- Mortalidades varias (mata las mosquitas con cierta probabilidad)
+- Nacimientos por saturación (que es donde principalmente tiene un problema el código)
+- Descacharrado (de los 20 tachos, elimina el 50%)
+- Mortalidad por vejez 
+- envejece la población de mosquitas un día
+
+en el archivo bichos.cu:
+
+-La función test() calcula por dia:
 1) el número total de mosquitas después de reproducirse (agregue saturación, 800 huevos por tacho)
 2) el número de mosquitas que se mueren con alguna probabilidad ( prob. de morirse de huevo-> larva, de larva-> pupa, de pupa ->adulta)
 3) el número de mosquitas que se mueren por viejas
@@ -16,5 +26,5 @@ La función test() calcula por dia:
 6) se remueven las mosquitas muertas
 7) estadística: cuantas mosquitas hay por tacho,cuantas mosquitas hay por determinada edad y cuando tachos hay por manzana. 
 
-La función testGPU() calcula la población de mosquitas de todos los tachos en un año (400 días)
+-La función testGPU() calcula la población de mosquitas de todos los tachos en un año (400 días)
 
