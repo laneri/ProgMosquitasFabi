@@ -1,3 +1,5 @@
+El código calcula la población de mosquitas en 20 manzanas. 
+
 Cada mosquita i en el programa tiene definido:
 su estado               -> 0(vivo) o 1(muerto)
 su edad                 -> entre 12 y 16 dias 
