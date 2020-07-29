@@ -49,7 +49,7 @@ Para que se puedan comparar resultados con el código serial, es necesario tener
 // Este es un test detallado de las funciones de la clase bichos
 // Aqui esta desagregado lo que pasa con bichos en un dia
 // Reproduccion, Muerte, Envejecimiento, Remocion de muertos 
-int test1()
+/*int test1()
 {
 	bichos mosquitas(Ninicial);
 
@@ -62,12 +62,12 @@ int test1()
 	int TPUP=mosquitas.tiempo_pupas_adultas(dia);
 	std::cout << dia << "\t" << tOVI << "\t" << TPUP << std::endl;
 
-	std::cout << "mosquitas despues de reproducirse" << std::endl;
-	mosquitas.reproducir(dia);
-	mosquitas.imprimir(dia);
-
 	std::cout << "mosquitas muertas con alguna probabilidad" << std::endl;
 	mosquitas.matar(dia);
+	mosquitas.imprimir(dia);
+
+	std::cout << "mosquitas despues de reproducirse" << std::endl;
+	mosquitas.reproducir(dia);
 	mosquitas.imprimir(dia);
 
 	std::cout << "mosquitas muertas por vejez" << std::endl;
@@ -92,7 +92,7 @@ int test1()
 	mosquitas.imprimir_estadisticas();
 
 	return 0;
-};
+};*/
 
 
 // Cálculo de toda la población de mosquitas vivas para 200 manzanas
@@ -105,7 +105,7 @@ int testGPU(){
 	
 	for(int dia=0;dia<ND;dia++){
 		mosquitas.avanza_dia(dia);
-		int vivas=mosquitas.vivos();
+		int vivas=mosquitas.vivos(dia);
 		if(vivas>0)
 			outfile << dia << "\t" << vivas << endl;			
 		else{
@@ -114,18 +114,57 @@ int testGPU(){
 		}
 
 	//Descomentar si desea conocer el detalle de la población de mosquitos en un día determinado. 
+	/*if(dia==0){
+	mosquitas.imprimir(dia);
+    std::cout << "mosquitas despues de reproducirse" << std::endl;
+	mosquitas.reproducir(dia);
+	mosquitas.imprimir(dia);
+	}*/
+	
+/*	if(dia==350){
+	mosquitas.imprimir(dia);
+        std::cout << "mosquitas despues de matarlas" << std::endl;
+	mosquitas.matar(dia);
+	mosquitas.imprimir(dia);
+        std::cout << "mosquitas despues de reproducirse" << std::endl;
+	mosquitas.reproducir(dia);
+	mosquitas.imprimir(dia);
+        std::cout << "mosquitas despues de morirse de viejas" << std::endl;	
+	mosquitas.matar_viejos(dia);
+	mosquitas.imprimir(dia);
+	std::cout << "mosquitas despues de descacharrar tachos" << std::endl;
+	mosquitas.descacharrar_tacho(dia);
+	mosquitas.imprimir(dia);
+        std::cout << "mosquitas despues de envejecerlas un día" << std::endl;	
+	mosquitas.envejecer();
+	mosquitas.imprimir(dia);
+	std::cout << "mosquitas despues de remover las muertas" << std::endl;
+	mosquitas.recalcularN();
+	mosquitas.imprimir(dia);
+	}*/
 
-/*	if(dia==0){
-	//mosquitas.imprimir(dia);
-	cout << "estadisticas" << endl;
-	mosquitas.imprimir_estadisticas();}
-*/
-/*	if(dia==200){
-	//mosquitas.imprimir(dia);
-	cout << "estadisticas" << endl;
-	mosquitas.imprimir_estadisticas();}
-*/
 
+/* 	if(dia==108){
+	mosquitas.imprimir(dia);
+//    std::cout << "mosquitas despues de matarlas" << std::endl;
+//	mosquitas.matar(dia);
+//	mosquitas.imprimir(dia);
+    std::cout << "mosquitas despues de reproducirse" << std::endl;
+	mosquitas.reproducir(dia);
+	mosquitas.imprimir(dia);
+    std::cout << "mosquitas despues de morirse de viejas" << std::endl;	
+	mosquitas.matar_viejos(dia);
+	mosquitas.imprimir(dia);
+	std::cout << "mosquitas despues de descacharrar tachos" << std::endl;
+	mosquitas.descacharrar_tacho(dia);
+	mosquitas.imprimir(dia);
+    std::cout << "mosquitas despues de envejecerlas un día" << std::endl;	
+	mosquitas.envejecer();
+	mosquitas.imprimir(dia);
+	std::cout << "mosquitas despues de remover las muertas" << std::endl;
+	mosquitas.recalcularN();
+	mosquitas.imprimir(dia);
+	}*/
 /*	if(dia==399){
 	//mosquitas.imprimir(dia);
 	cout << "\n Estadisticas" << endl;
@@ -154,4 +193,5 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
 
