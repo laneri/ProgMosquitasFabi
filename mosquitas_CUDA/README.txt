@@ -1,4 +1,4 @@
-El código calcula la población de mosquitas en 20 manzanas, considerando 1 tacho por manzana (es decir, 20 tachos) y una mosquita por tacho. 
+El código calcula la población de mosquitas en 4 manzanas, considerando 1 tacho por manzana (es decir, 20 tachos) y una mosquita por tacho. 
 
 en el archivo bichos.h:
 - Cada mosquita i en el programa tiene definido:
