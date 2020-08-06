@@ -7,7 +7,6 @@
 #include <math.h>
 #include "ran2.h"
 #include "funciones.h"
-#include "cpu_timer.h"
 
 using namespace std;
 
@@ -120,8 +119,6 @@ Reloj_CPU.tic();
 
 //  }//cierro bucle para las manzanas
 printf("\n");
-	//milisegundos
-	printf("Calcula poblaciones de mosquitas para un nro de manzanas %d en %lf ms en CPU\n",nmanzanas,Reloj_CPU.tac());
 
 	for(int dia=1;dia<=ttotal;dia++){
 	outfile1 << dia << "\t" << poblacion_suma[dia] << "\n";}
