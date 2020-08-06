@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "ran2.h"
-#include "parametros.h"
-#include "main.cu"
+#include "funciones.h"
 #include "cpu_timer.h"
 
 using namespace std;
