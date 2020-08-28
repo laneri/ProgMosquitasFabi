@@ -2,6 +2,7 @@
 #include <Random123/u01.h>    // to get uniform deviates [0,1]
 #include <cmath>
 #include "parametros.h"
+
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 #define SEMILLAGLOBAL	12345
@@ -16,10 +17,10 @@ __global__ void reproducir_kernel(int *estado, int *edad, int *tacho, int *N_mob
 
 	int N=N_mobil[0];	
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
-	
+//si la mosquita esta viva y esta en edad adulta (puede volar) entonces pone huevos cada tovip dias	
 	if(id<N){
 		if(estado[id] == ESTADOVIVO && edad[id] > tpupad && edad[id]%tovip == 0){
-			int tach=tacho[id];	     		
+			int tach=tacho[id];	//pongo todos los huevos en el mismo tacho     		
 	     		atomicAdd(nacidos+tach,NUMERODEHUEVOS);
 			}
 	}
@@ -52,9 +53,10 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho, int *N_mobil,in
 		//MORTALIDADADES VARIAS (morirse antes de ser vieja)
 		//if (estado[id] == ESTADOVIVO && edad[id] < tpupad){ 
 		//  	 if (azar < prob_morir)estado[id]=ESTADOMUERTO;} 
-		if (estado[id] == ESTADOVIVO && edad[id] < tpupad){if(azar < moracu)estado[id]=ESTADOMUERTO;}
-		if (estado[id] == ESTADOVIVO && edad[id] == tpupad){if(azar < morpupad)estado[id]=ESTADOMUERTO;}
-		if (estado[id] == ESTADOVIVO && edad[id] > tpupad){if(azar < morad)estado[id]=ESTADOMUERTO;} 
+		if (estado[id] == ESTADOVIVO && edad[id] < tpupad){if(azar < moracu)estado[id]=ESTADOMUERTO;} //muere en estado acuatico
+		if (estado[id] == ESTADOVIVO && edad[id] == tpupad){if(azar < morpupad)estado[id]=ESTADOMUERTO;} 
+		if (estado[id] == ESTADOVIVO && edad[id] > tpupad){if(azar < morad)estado[id]=ESTADOMUERTO;} //muere en estado adulto
+		
  
 	}
 };
@@ -96,17 +98,33 @@ struct iguala{
 	}
 };
 
+
+// otro functorcito usado para las estadisticas desagregadas
+struct acuaticoeneltacho{
+	int m;
+    int t;
+	acuaticoeneltacho(int m_, int t_):m(m_),t(t_){};
+    
+	__device__ bool operator()(thrust::tuple<int,int> tupla)
+	{
+        int tach=thrust::get<0>(tupla);
+        int edad=thrust::get<1>(tupla);
+		return (tach==m && edad<t);
+	}
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////
 // Clase bichos: toda la info sobre todos los bichos, y sus funciones
 struct bichos{
 
 	thrust::device_vector<int> estado;  // Vivo o Muerto 0/1
-	thrust::device_vector<int> edad;    // 0 a MAXIMAEDAD
+	thrust::device_vector<int> edad;    // tiene num de mosqu elementos y los valores van de 0 a MAXIMAEDAD
 	thrust::device_vector<int> tacho;   // 0 a NUMEROTACHOS
-	thrust::device_vector<int> nacidos; // nacidos por tacho
 	thrust::device_vector<int> TdV; //tiempo de vida
 	thrust::device_vector<int> manzana; //manzana
 
+	thrust::device_vector<int> nacidos; // tiene el num de tachos elementos, numero de nacidos por tacho
+	
 	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
 	
 	// punteros crudos a los arrays para pasarselos a kernels
@@ -121,12 +139,15 @@ struct bichos{
 	// constructor: N_ = bichos iniciales
 	bichos(int N_)
 	{
+        std::cout << "comenzando inicializacion para " << MAXIMONUMEROBICHOS << " bichos" << std::endl;
 
-		// alocamos el maximo posible
-		edad.resize(MAXIMONUMEROBICHOS);	
-		tacho.resize(MAXIMONUMEROBICHOS);	
-		estado.resize(MAXIMONUMEROBICHOS);
-		TdV.resize(MAXIMONUMEROBICHOS);
+            // alocamos el maximo posible
+        edad.resize(MAXIMONUMEROBICHOS);
+        std::cout << "resizes hechos" << std::endl;
+
+        tacho.resize(MAXIMONUMEROBICHOS);	
+        estado.resize(MAXIMONUMEROBICHOS);
+        TdV.resize(MAXIMONUMEROBICHOS);
 
 		//manzana	
 		manzana.resize(MAXIMONUMEROBICHOS);
@@ -161,7 +182,10 @@ struct bichos{
 			int j=tacho[i];
 			manzana[j]++;			//para contar tachos en una manzana
 		}		
-	};
+
+        std::cout << "inicializacion lista" << std::endl;
+        
+    };
 
 	//defino la temperatura segun la estacion y el tiempo entre oviposiciones y de maduración de acuaticos	
 	int tiempo_entre_oviposiciones(int dia){
@@ -182,7 +206,7 @@ struct bichos{
 
 	// recorre los bichos, calcula el numero de nacidos por tacho
 	void reproducir(int dia){
-		int N=N_mobil[0];
+		int N=N_mobil[0]; //este es el indice que me indica donde termina el array de mosquitas vivas, se acuatila en el kernel reproducir
 
 		int tovip=tiempo_entre_oviposiciones(dia);
 		int tpupad=tiempo_pupas_adultas(dia);
@@ -195,17 +219,31 @@ struct bichos{
 
 		// agrega todos los nacidos al final del array original, tacho a tacho
 		int index=N;
+        bool nosaturo=1;
 		for(int m=0;m<NUMEROTACHOS;m++){
 			//std::cout << "listo nacidos " << std::endl; 
-			int nuevos=nacidos[m];
-			if(tacho[m]+nacidos[m] < 800){ 						//cond. saturacion 
-			thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);	//todos vivos(0)	
-			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		//todos nacen el dia 0	
+ 
+            //antiguos=thrust::count_if(tacho.begin(),tacho.begin()+N,iguala(m));
+
+            int antiguos=thrust::count_if(
+                thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
+                thrust::make_zip_iterator(thrust::make_tuple(tacho.end(),edad.end())),
+                acuaticoeneltacho(m,tpupad)
+            );
+            
+            int nuevos=nacidos[m];
+	//		if(tacho[m]+nacidos[m] < 800){ 						//cond. saturacion 
+            nosaturo=((index+nuevos) < MAXIMONUMEROBICHOS);
+            if((antiguos+nuevos) < 800 && nosaturo==1){ 						//cond. saturacion 
+            thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);	//todos vivos(0)	
+			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		//todos nacen con edad 0	
 			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	//en el tacho m
 			thrust::fill(TdV.begin()+index,TdV.begin()+index+nuevos,rand()%3+28); // con tiempo de vida 28 a 30
-			index+=nuevos;		
+			index+=nuevos;		//actualizo el indice para me marque siempre en la ultima mosquita que nacio 
 			}
 		}
+	// problema si esto satura saturan los tachos mas grandes, ver como cambiar esto por ejemplo llnando tachos al azar
+        if(nosaturo==0) std::cout << "algunos tachos no se rellenaron por saturacion del total de mosquitas" << std::endl;
 	
 		// actualiza el numero de bichos si no se sobrepasa el maximo
 		if(index<MAXIMONUMEROBICHOS) {
@@ -250,7 +288,7 @@ struct bichos{
 	// reordenando para poner los muertos al fondo, podemos calcular el numero de vivos, y actualizar N_mobil
 	void recalcularN(){
 		auto zip_iterator=
-		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin()));
+		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),TdV.begin()));
 
 		// ordenamos segun estado 0-vivo, 1-muerto
 		int N=N_mobil[0];
@@ -318,10 +356,15 @@ struct bichos{
 		return N_mobil[0];
 	};
 
-	void avanza_dia(int dia){
+	void avanza_dia(int dia)
+    {
+        std::cout << "reproducir" << std::endl;
 		reproducir(dia); 		//nacimientos
-		matar(dia);			//mortalidades varias
-		matar_viejos(dia);		//mortalidad por vejez
+
+        std::cout << "matar" << std::endl;
+        matar(dia);			//mortalidades varias
+
+        matar_viejos(dia);		//mortalidad por vejez
 		descacharrar_tacho(dia);	//descacharrar tacho
 		envejecer();			//envejecer un dia la poblacion
 		recalcularN();

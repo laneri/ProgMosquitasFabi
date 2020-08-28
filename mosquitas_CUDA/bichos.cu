@@ -103,7 +103,7 @@ int testGPU(){
 
 	bichos mosquitas(Ninicial);
 	
-	for(int dia=0;dia<ND;dia++){
+ 	for(int dia=0;dia<ND;dia++){
 		mosquitas.avanza_dia(dia);
 		int vivas=mosquitas.vivos();
 		if(vivas>0)
@@ -133,10 +133,11 @@ int testGPU(){
 */
 	}//cierro dias
 
-	return 0;
+   outfile.close();
+
+   return 0;
 
    // close the opened file.
-   outfile.close();
 };
 
 
@@ -147,10 +148,10 @@ int main(int argc, char **argv)
 	printf("Cálculo de la población de mosquitos para %d manzanas\n",NUMEROMANZANAS);
 
 	//test1(argc,argv);
-  	gpu_timer Reloj_GPU;
-	Reloj_GPU.tic();
+//  	gpu_timer Reloj_GPU;
+//	Reloj_GPU.tic();
 	testGPU();
-	printf("Tiempo en GPU: %lf ms\n",Reloj_GPU.tac());
+//	printf("Tiempo en GPU: %lf ms\n",Reloj_GPU.tac());
 
 	return 0;
 }
