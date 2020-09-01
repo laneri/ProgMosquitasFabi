@@ -1,4 +1,4 @@
-#include <Random123/philox.h> // philox headers
+#include <Rando123/philox.h> // philox headers
 #include <Random123/u01.h>    // to get uniform deviates [0,1]
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
@@ -72,7 +72,6 @@ __device__ __host__  int tiempo_pupas_adultas(int dia){
     
     int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x + 1;
-
 	if(id<=N){	
 	        //tach[id]=0; 
 	   		if(edad[id] < tpupad && estado[id] == ESTADOVIVO){ 
@@ -87,7 +86,6 @@ __global__ void matar_kernel_eggs(int *estado, int *edad, int *tacho, int *N_mob
 {
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
-
 	if(id<N){		
 	 	RNG philox;         
 	    	RNG::ctr_type c={{}};
@@ -99,16 +97,13 @@ __global__ void matar_kernel_eggs(int *estado, int *edad, int *tacho, int *N_mob
 		
     		r = philox(c, k); 
      		double azar=(u01_closed_closed_32_53(r[0]));
-
 		    if (edad[id] < tpupad){if(azar < moracu)estado[id]=ESTADOMUERTO;}
 	}
 };
-
 __global__ void matar_kernel_pupas(int *estado, int *edad, int *tacho, int *N_mobil, int dia,int tpupad)
 {
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
-
 	if(id<N){		
 	 	RNG philox;         
 	    	RNG::ctr_type c={{}};
@@ -120,16 +115,13 @@ __global__ void matar_kernel_pupas(int *estado, int *edad, int *tacho, int *N_mo
 		
     		r = philox(c, k); 
      		double azar=(u01_closed_closed_32_53(r[0]));
-
 		if (edad[id] == tpupad){if(azar < morpupad)estado[id]=ESTADOMUERTO;}
-
 	}
 };
 __global__ void matar_kernel_adultas(int *estado, int *edad, int *tacho, int *N_mobil, int dia, int tpupad)
 {
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
-
 	if(id<N){		
 	 	RNG philox;         
 	    	RNG::ctr_type c={{}};
@@ -141,9 +133,7 @@ __global__ void matar_kernel_adultas(int *estado, int *edad, int *tacho, int *N_
 		
     		r = philox(c, k); 
      		double azar=(u01_closed_closed_32_53(r[0]));
-
 		if (edad[id] > tpupad){if(azar < morad)estado[id]=ESTADOMUERTO;}
-
 	}
 };
 */
@@ -265,12 +255,11 @@ struct bichos{
 	void mortalidades_varias(int dia,int tpupad){
 
 	int N=N_mobil[0];
-	/*//problemas con los kernels para las mortalidades,tal vez tiene que ver con  la semilla generadora de los números random, porque afecta el resultad, o tal vez hay un tema con la condicion de carrera
+	/*//problemas con los kernels para las mortalidades,tal vez tiene que ver con  la semilla generadora de los números random, porque afecta el resultaod, o tal vez hay un tema con la condicion de carrera
     //  matar_kernel_eggs<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);	
 	//	cudaDeviceSynchronize();
 	//	matar_kernel_pupas<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);	
 	//	cudaDeviceSynchronize();
-
 	//	matar_kernel_adultas<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);		
 	//	cudaDeviceSynchronize();*/
 
@@ -307,7 +296,7 @@ struct bichos{
    			} 
 		}
 
-		// actualiza el numero de bichos si no se sobrepasa el maximo
+		// actualiza el numero de bichos
 		N_mobil[0]=indice;
 
 	};
@@ -315,7 +304,6 @@ struct bichos{
 	void muerte_x_vejez(int dia){
 		int N=N_mobil[0];
 
-        //for(int i=0;i < N ;i++){if (estado[i] == ESTADOVIVO && edad[i] >= TdV[i])estado[i]=ESTADOMUERTO;} 
 		matar_viejos_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_N_mobil, dia);
 		cudaDeviceSynchronize();		
 	};
@@ -327,9 +315,6 @@ struct bichos{
 	  		for(int itach=0;itach < descach;itach++){
 	    		int ntach=ran2(&semilla)*ntachito;
 			    descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_N_mobil,dia,ntach);
-				/*for(int i=0;i < N;i++){
-	  				if (estado[i] == ESTADOVIVO && edad[i] < tpupad && tacho[i] == ntach)estado[i]=ESTADOMUERTO;
-				}*/
 			}    	
 	   	}	
 	};
@@ -338,7 +323,6 @@ struct bichos{
 	void envejecer(){
 	int N=N_mobil[0];
 	
-	  	//for(int i=0;i < N;i++){if (estado[i] == ESTADOVIVO) edad[i] = edad[i]+1;}
     	envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_N_mobil);
     	cudaDeviceSynchronize();
 	};
@@ -354,10 +338,12 @@ struct bichos{
 		return poblacion;
 	};
 
-	/*void recalcularN(){
-		auto zip_iterator=
-		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),TdV.begin(),manzana.begin()));
+/*  //Descomentar esto y  comentar las lineas 331-339 para ver como es el cálculo de la población eliminando los muertos del array
 
+    //Recalcular -> eliminar muertos y dejar vivos
+    void recalcularN(){
+		auto zip_iterator=
+		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),TdV.begin(),tach.begin(),manzana.begin()));
 		// ordenamos segun estado 0-vivo, 1-muerto
 		int N=N_mobil[0];
 		thrust::sort_by_key(estado.begin(), estado.end(),zip_iterator);		
@@ -366,12 +352,12 @@ struct bichos{
 		auto iter=thrust::find(estado.begin(), estado.end(), ESTADOMUERTO);
 		N_mobil[0]= iter-estado.begin();//me da la longitud del vector
     
-	};*/
-	/*int vivos(int dia){
-
-		return N_mobil[0];
-	};*/
+	};
 	
+	int vivos(int dia){
+        return N_mobil[0];    
+	};*/
+
 	// Imprime el estado completo de los bichos (solo para debuging)
 	void imprimir(int dia){
 		int N=N_mobil[0];
@@ -408,10 +394,9 @@ int main(){
 	    mosquitas.muerte_x_vejez(dia);
 		mosquitas.descacharrado(dia,tpupad,descach);
 		mosquitas.envejecer();
+		//mosquitas.recalcularN();//descomentar cuando se descomenten desde la linea 342-357
 		int vivas=mosquitas.vivos(dia);
 		outfile << dia << "\t" << vivas << endl;
-		//mosquitas.envejecer();
-		//mosquitas.recalcularN();
     }//cierro dias
     double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
     printf("Tiempo en GPU: %lf minutos\n",t);
