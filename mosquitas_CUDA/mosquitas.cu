@@ -1,5 +1,5 @@
-#include <philox.h> // philox headers
-#include <u01.h>    // to get uniform deviates [0,1]
+#include <Random123/philox.h> // philox headers
+#include <Random123/u01.h>    // to get uniform deviates [0,1]
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 #include<thrust/device_vector.h>
@@ -82,7 +82,7 @@ __device__ __host__  int tiempo_pupas_adultas(int dia){
 	}  
     
 };*/
-
+/*
 __global__ void matar_kernel_eggs(int *estado, int *edad, int *tacho, int *N_mobil, int dia,int tpupad)
 {
 	int N=N_mobil[0];
@@ -100,7 +100,7 @@ __global__ void matar_kernel_eggs(int *estado, int *edad, int *tacho, int *N_mob
     		r = philox(c, k); 
      		double azar=(u01_closed_closed_32_53(r[0]));
 
-		if (edad[id] < tpupad){if(azar < moracu)estado[id]=ESTADOMUERTO;}  
+		    if (edad[id] < tpupad){if(azar < moracu)estado[id]=ESTADOMUERTO;}
 	}
 };
 
@@ -146,7 +146,7 @@ __global__ void matar_kernel_adultas(int *estado, int *edad, int *tacho, int *N_
 
 	}
 };
-
+*/
 //muerte de las mosquitas por vejez
 __global__ void matar_viejos_kernel(int *estado, int *edad, int *tacho, int *TdV,int *N_mobil,int dia)
 {
@@ -181,6 +181,7 @@ __global__ void envejecer_kernel(int *estado, int *edad,int *N_mobil)
   		    if (estado[id]== ESTADOVIVO)edad[id]= edad[id] + 1;    	
     	}
 };
+
 /////////////////////////////////////////////////////////////////////////////////////////
 // Clase bichos: toda la info sobre todos los bichos, y sus funciones
 struct bichos{
@@ -264,14 +265,21 @@ struct bichos{
 	void mortalidades_varias(int dia,int tpupad){
 
 	int N=N_mobil[0];
-        matar_kernel_eggs<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);	
-		cudaDeviceSynchronize();
+	/*//problemas con los kernels para las mortalidades,tal vez tiene que ver con  la semilla generadora de los números random, porque afecta el resultad, o tal vez hay un tema con la condicion de carrera
+    //  matar_kernel_eggs<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);	
+	//	cudaDeviceSynchronize();
+	//	matar_kernel_pupas<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);	
+	//	cudaDeviceSynchronize();
 
-		matar_kernel_pupas<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);	
-		cudaDeviceSynchronize();
+	//	matar_kernel_adultas<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);		
+	//	cudaDeviceSynchronize();*/
 
-		matar_kernel_adultas<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_N_mobil, dia,tpupad);		
-		cudaDeviceSynchronize();
+		for(int i=0;i < N;i++){
+		if (estado[i] == ESTADOVIVO && edad[i] < tpupad){if(ran2(&semilla) < moracu)estado[i]=ESTADOMUERTO;}
+		if (estado[i] == ESTADOVIVO && edad[i] == tpupad){if(ran2(&semilla) < morpupad)estado[i]=ESTADOMUERTO;}
+		if (estado[i] == ESTADOVIVO && edad[i] > tpupad){if(ran2(&semilla) < morad)estado[i]=ESTADOMUERTO;}  
+		} 
+
 	};
 
 	// recorre los bichos, calcula el numero de nacidos por tacho
@@ -291,8 +299,8 @@ struct bichos{
 	         			TdV[indice]=ran2(&semilla)*3+28; 
 						manzana[indice]=manzana[i];
 						int j=tacho[indice];
- 						tach[j]=tach[j]+1;
- 						indice=indice+1; 
+ 						tach[j]=tach[j] + 1;
+ 						indice=indice + 1; 
    						}
   					   }    
 				}  
@@ -307,6 +315,7 @@ struct bichos{
 	void muerte_x_vejez(int dia){
 		int N=N_mobil[0];
 
+        //for(int i=0;i < N ;i++){if (estado[i] == ESTADOVIVO && edad[i] >= TdV[i])estado[i]=ESTADOMUERTO;} 
 		matar_viejos_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_N_mobil, dia);
 		cudaDeviceSynchronize();		
 	};
@@ -317,14 +326,23 @@ struct bichos{
 		if(dia%7 == 0 && dia > 150 && dia < 240){
 	  		for(int itach=0;itach < descach;itach++){
 	    		int ntach=ran2(&semilla)*ntachito;
-			//std::cout << ntach << std::endl;
-				for(int i=0;i < N;i++){
+			    descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_N_mobil,dia,ntach);
+				/*for(int i=0;i < N;i++){
 	  				if (estado[i] == ESTADOVIVO && edad[i] < tpupad && tacho[i] == ntach)estado[i]=ESTADOMUERTO;
-				}
+				}*/
 			}    	
 	   	}	
 	};
 
+
+	void envejecer(){
+	int N=N_mobil[0];
+	
+	  	//for(int i=0;i < N;i++){if (estado[i] == ESTADOVIVO) edad[i] = edad[i]+1;}
+    	envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_N_mobil);
+    	cudaDeviceSynchronize();
+	};
+	
 	// Numero de bichos vivos
 	int vivos(int dia){
 
@@ -336,13 +354,6 @@ struct bichos{
 		return poblacion;
 	};
 
-
-	void envejecer(){
-	int N=N_mobil[0];
-    	envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_N_mobil);
-    	cudaDeviceSynchronize();
-	};
-	
 	/*void recalcularN(){
 		auto zip_iterator=
 		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),TdV.begin(),manzana.begin()));
@@ -396,10 +407,10 @@ int main(){
 	    mosquitas.reproducir(dia,tpupad,tovip);
 	    mosquitas.muerte_x_vejez(dia);
 		mosquitas.descacharrado(dia,tpupad,descach);
-
+		mosquitas.envejecer();
 		int vivas=mosquitas.vivos(dia);
 		outfile << dia << "\t" << vivas << endl;
-		mosquitas.envejecer();
+		//mosquitas.envejecer();
 		//mosquitas.recalcularN();
     }//cierro dias
     double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
