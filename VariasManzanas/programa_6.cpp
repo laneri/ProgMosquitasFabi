@@ -1,143 +1,136 @@
+#include <cstdlib>
+#include <iostream>
+#include <fstream>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include "ran2.h"
 #include "funciones.h"
 
+using namespace std;
 
-int main(){
+struct evolucion_temporal
+{
+  const unsigned int ND;
 
-/* guardo datos en los archivos */
-	FILE *out1;
-	out1=fopen("acuaticos_vivos_total_C.dat","w"); 
+  evolucion_temporal(unsigned int _ND) : ND(_ND) {}
 
+  evolucion_temporal operator()(int ji,int dia,tachj T, mosquitos M,int indice,long *seed,int descach, int *poblacion){
 
- int tiempo,tovip,descach,indice,ntach;
- int ad,ac;
- int *tach;   //vector para los tachos de nmax elementos 
- double producto;
+	for(dia = 1; dia <= ND; dia++){
 
- long semilla = -975;  		//semilla del generador de numeros aleatorios
- producto=round(ntachito*prop);
- descach=producto;		//cantidad de tachos que vacío con la propaganda
+	int tovip=dia_entre_oviposiciones(dia);
+	int tpupad=dia_pupas_adultas(dia);						
+	conteo_huevosxT(dia,indice,tpupad,M,T);
+ 	mortalidades(indice,M,tpupad,seed);
 
- indice=0;
- mosquitos M;
-
- tach = (int *)malloc(nmanzanas*nmax*sizeof(int)); //Aloco memoria para vector tach[nmax]
-
- printf("\tnro de hembras\t VoM\t tacho\t DdV\t DdM\n");
-/* Bucle para las manzanas */
-
- for(int j=1;j<=nmanzanas;j++){
-
- printf("Manzana:%d\n",j);
-
-/*condiciones iniciales*/
- 	for(int i=1;i<=inhem;i++){
-	M.VoM[i] = 1; 
-   	M.tacho[i] = i;
-   	M.DdV[i] =ran2(&semilla)*5+12;
-   	M.DdM[i] =ran2(&semilla)*6+27;
-	indice=indice+1;
-	printf("\t\t%d\t %d\t %d\t %d\t %d\n",i,M.VoM[i],M.tacho[i],M.DdV[i],M.DdM[i]);
-	}
-
-/*Evolución temporal para mi sistema*/
- 
-//-------------------------------------------------------------------	
-	for(tiempo=1; tiempo<=ttotal ;tiempo++){ 
-//-------------------------------------------------------------------------
-// defino la temperatura segun la estacion y el tiempo entre oviposiciones
-//-------------------------------------------------------------------------
-
-	tovip=tiempo_en_dias(tiempo,tovip,&semilla);
-
-//---------------------------------------------------------------------
-// cuento cuantos huevos hay en cada tacho
-//---------------------------------------------------------------------- 
-
-	incializar_vec(tach);
-	huevos_x_tacho(indice,M,tach);
-
-//--------------------------------------------------------------------------
-// MORTALIDADADES VARIAS (morirse antes de ser vieja): mato acuaticos con prob moracu,
-// a las que estan por volverse adultas picadoras con prob morpupad
-// y a las adultas con prob morad (no es la muerte por vejez, ojo)
-//--------------------------------------------------------------------------
-
-	mortalidades(indice, M,&semilla);
-
-// -------------------------------------------------------------------	    
-// NACIMIENTOS CON SATURACION
-//-------------------------------------------------------------------------- 
-
-	for(int i =1;i <= indice;i++){
-
-		if (tach[M.tacho[i]] < sat){ 
-
+		for(int i =1;i <= indice;i++){
+		if (T.tach[M.tacho[i]] < sat){ 
 			if(M.VoM[i] == 1 && M.DdV[i] > tpupad){
-
 				  if(M.DdV[i]%tovip == 0){
-
+ 				  int iovip=ran2(seed)*4+7; 
    					for(int ik=1;ik <= iovip;ik++){ 
-
  					indice=indice+1; 
  					M.VoM[indice]=1;
  					M.DdV[indice]=1;   
  					M.tacho[indice]=M.tacho[i]; 
-	         			M.DdM[indice]=ran2(&semilla)*6+27; 
- 					tach[M.tacho[indice]]=tach[M.tacho[indice]]+1;
+	         			M.DdM[indice]=ran2(seed)*3+28; 
+					int j=M.tacho[indice];
+ 					T.tach[j]=T.tach[j]+1;
    					}
+  				   }    
+			}  
+   		} 
+	}
 
-  				   }    //del periodo entre oviposiciones y saturacion
-
-			}      //de vivas y maduras
-
-   		}   //de la saturac
-
-	//printf("%d\n",tach[M.tacho[i]]);
-	}  // de poblacion total (indice)
-
-//--------------------------------------------------------------------------
-//MUERTE POR VEJEZ: la mato cuando su edad alcanza el tiempo de vida asignado
-//--------------------------------------------------------------------------
 
 	muerte_x_vejez(indice,M);
+	descacharrado(dia,seed,descach,M,indice,tpupad);
+	poblacion_total(dia,indice,tpupad,M,poblacion);
+	envejezco_poblacion(indice,M);
+	}//cierro loop para dias
+return 0;
+	}
+};
 
-//--------------------------------------------------------------------			  		 
-//DESCACHARRADO: elimino los acuaticos de algunos tachos, 
-//una vez por semana a partir del día 20 (esto se puede cambiar, obvio)
-//-------------------------------------------------------------------- 
 
-	descacharro(tiempo,descach,&semilla,indice,M,tach);
+int main(int argc, char **argv){
 
-//--------------------------------------------------------------------			  		 
-// cuento poblacion adulta y acuatica
-//--------------------------------------------------------------------			  
-  ad=0;  //adultas total
-  ac=0;  //acuaticas vivas total
+ ofstream outfile,outfile1;
+ outfile.open("poblaciones_t.dat");
+ outfile1.open("suma_poblaciones.dat");
 
-	ad=poblacion_adultos(ad,indice,M);
-	ac=poblacion_acuaticos(ac,indice,M);
 
-//--------------------------------------------------------------------	   
-//envejezco a toda la población un día (aumento en 1)
-//--------------------------------------------------------------------
+ int dia=0,indice=0;
+ double producto=round(ntachito*prop);
+ int  descach=producto;						//cantidad de tachos que vacío con la propaganda
+ int ND=400;							//número de dias	
 
-	envejecer_poblacion(indice,M);
+ long semilla = -975;  						//semilla del generador de numeros aleatorios
 
-//--------------------------------------------------------------------
-//guardo los datos 
-//--------------------------------------------------------------------
- 	fprintf(out1,"\t %d\t %d\t %d\t %d\n",tiempo,ad,ac,ad+ac);		
 
-	}// cierro bucle para el tiempo
-	fprintf(out1,"\n");//inserta una linea en blanco en el archivo.dat
+//estructuras para cada mosquita
+ mosquitos M;							
+//estructura para tacho donde pone huevos la mosquita
+ tachj T;
 
-  }//cierro bucle para las manzanas
 
-	fclose(out1);
+ int *poblacion;
+ poblacion= (int *)malloc((ttotal+1)*sizeof(int));
 
-free(tach);
+ for(int i=1;i<=ttotal;i++){poblacion[i]=0;}
+
+ int *poblacion_suma;
+ poblacion_suma= (int *)malloc((ttotal+1)*sizeof(int));
+	
+ for(int i=1;i<=ttotal;i++){poblacion_suma[i]=0;}
+
+
+cpu_timer Reloj_CPU;
+Reloj_CPU.tic();
+
+//for(int ji=1;ji<=nmanzanas;ji++){
+ int ji=1;
+// long semilla = -975 + ji;
+ inicializoMosquitos(M);
+ indice=0;						//contador que debo inicializar en cero en cada manzana
+ printf("Manzana:%d\n",ji);
+
+	/*condiciones iniciales*/
+ 	for(int i=1;i<=inhem;i++){
+	M.VoM[i] = 1; 
+   	M.tacho[i] = i;
+   	M.DdV[i] =ran2(&semilla)*5+12;
+   	M.DdM[i] =ran2(&semilla)*3+28;
+	indice=indice+1;
+	printf("\t\t%d\t %d\t %d\t %d\t %d\n",i,M.VoM[i],M.tacho[i],M.DdV[i],M.DdM[i]);
+	}
+
+
+	evolucion_temporal operacion(ND);
+	operacion(ji,dia,T,M,indice,&semilla,descach,poblacion);
+
+	//guardo datos de la población de cada manzana en un archivo
+	for(dia=1; dia<=ttotal ; dia++){    	
+	outfile << ji << "\t" << dia << "\t" << poblacion[dia] << "\n"; 
+	poblacion_suma[dia] = poblacion_suma[dia]+ poblacion[dia];
+	}
+
+//  }//cierro bucle para las manzanas
+printf("\n");
+
+	for(int dia=1;dia<=ttotal;dia++){
+	outfile1 << dia << "\t" << poblacion_suma[dia] << "\n";}
+	outfile1 << endl;
+
+//cierro archivos
+outfile.close();
+outfile1.close();
+
+//libero memoria
+free(poblacion); 
+free(poblacion_suma); 
+							
 }// end for main
+

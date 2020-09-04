@@ -21,14 +21,15 @@
 #$ -cwd
 #$ -j y
 #$ -S /bin/bash
-#$ -q gpushort
+#$ -q gpu
 #$ -l gpu=1
 #$ -l memoria_a_usar=1G
-#
+#$ -N bichos
+
 #cargar variables de entorno para encontrar cuda
 module load cuda/8.0.61
 
 #ejecutar el o los binarios con sus respectivos argumentos
-$1
+./bichos $1
 
 
