@@ -1,9 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
-#include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
-#include <thrust/copy.h>
 #include "ran2.h"
 #include <cmath>
 #include "cpu_timer.h"
@@ -197,33 +195,15 @@ struct bichos{
     //Recalcular -> eliminar muertos y dejar vivos
     void recalcularN(){
 
-    thrust::device_vector<int> d_estado=estado;  // Vivo o Muerto 0/1
-	thrust::device_vector<int> d_edad=edad;    // edad
-	thrust::device_vector<int> d_tacho=tacho;   // Tacho en el que vive
-	thrust::device_vector<int> d_TdV=TdV;     // tiempo de vida
-	thrust::device_vector<int> d_manzana=manzana; //manzana
-
-	thrust::device_vector<int> d_tach=tach;	
-
-	thrust::device_vector<int> d_N_mobil=N_mobil;
-	
 		auto zip_iterator=
-		thrust::make_zip_iterator(thrust::make_tuple(d_edad.begin(),d_tacho.begin(),d_TdV.begin(),d_tach.begin(),d_manzana.begin()));
+		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),TdV.begin(),tach.begin(),manzana.begin()));
 		// ordenamos segun estado 0-vivo, 1-muerto
 		int N=N_mobil[0];
-		thrust::sort_by_key(d_estado.begin(), d_estado.end(),zip_iterator);		
+		thrust::sort_by_key(estado.begin(), estado.end(),zip_iterator);		
 	
 		// y ahora determinamos la posicion del primer muerto = N_mobil
-		auto iter=thrust::find(d_estado.begin(),d_estado.end(), ESTADOMUERTO);
-		d_N_mobil[0]= iter-d_estado.begin();//me da la longitud del vector
-
-        thrust::copy(d_estado.begin(), d_estado.end(), estado.begin());
-        thrust::copy(d_edad.begin(), d_edad.end(), edad.begin());
-        thrust::copy(d_tacho.begin(), d_tacho.end(), tacho.begin());
-        thrust::copy(d_TdV.begin(), d_TdV.end(), TdV.begin());
-        thrust::copy(d_manzana.begin(), d_manzana.end(), manzana.begin());
-        thrust::copy(d_tach.begin(), d_tach.end(), tach.begin());
-        thrust::copy(d_N_mobil.begin(), d_N_mobil.end(), N_mobil.begin());
+		auto iter=thrust::find(estado.begin(),estado.end(), ESTADOMUERTO);
+		N_mobil[0]= iter-estado.begin();//me da la longitud del vector
 	};
 	
 	int vivos(int dia){
