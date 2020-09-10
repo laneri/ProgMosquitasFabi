@@ -1,3 +1,14 @@
+Tener en cuenta que se necesitan tener en una misma carpeta los archivos 
+
+-bichos.cu 
+-mosquitas.cu
+-ran2.h
+-cpu_timer.h
+-gpu_timer.h
+-la carpeta include, que contiene como subcarpeta Random123
+-Makefile
+-jobGPU
+
 para ejecutar el Makefile escribir en la terminal:
 
 1) make bichos 
