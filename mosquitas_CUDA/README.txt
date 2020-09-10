@@ -7,7 +7,7 @@ para ejecutar el Makefile escribir en la terminal:
 en el output vamos a ver:  
 
 4) un archivo poblacion.o# 
-haciendo un cat en bichos.o# se puede ver las condiciones iniciales de los códigos en C++ y CUDA y el tiempo de cálculo
+haciendo un cat en poblacion.o# se puede ver las condiciones iniciales de los códigos en C++ y CUDA y el tiempo de cálculo
 
 5) los archivos 
 	-Poblacion_total_GPU.dat
