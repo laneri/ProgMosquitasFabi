@@ -2,16 +2,19 @@
 #include <iostream>
 #include <fstream>
 #include <thrust/host_vector.h>
+#include<thrust/iterator/zip_iterator.h>
+#include<thrust/tuple.h>
+#include<thrust/find.h>
 #include "ran2.h"
 #include <cmath>
 #include "cpu_timer.h"
 
 // macros utiles para CPU y GPU, y hacer desaparecer numeros magicos
-#define Ninicial		    5
+#define Ninicial		5
 #define NUMEROTACHOS		5
 #define MAXIMONUMEROBICHOS	80000
 
-#define ESTADOMUERTO	1
+#define ESTADOMUERTO		1
 #define ESTADOVIVO		0
 #define Ndias			400
 
@@ -199,10 +202,10 @@ struct bichos{
 		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),TdV.begin(),tach.begin(),manzana.begin()));
 		// ordenamos segun estado 0-vivo, 1-muerto
 		int N=N_mobil[0];
-		thrust::sort_by_key(estado.begin(), estado.end(),zip_iterator);		
+		thrust::sort_by_key(estado.begin(), estado.begin() + N,zip_iterator);		
 	
 		// y ahora determinamos la posicion del primer muerto = N_mobil
-		auto iter=thrust::find(estado.begin(),estado.end(), ESTADOMUERTO);
+		auto iter=thrust::find(estado.begin(),estado.begin() + N, ESTADOMUERTO);
 		N_mobil[0]= iter-estado.begin();//me da la longitud del vector
 	};
 	
@@ -228,10 +231,10 @@ struct bichos{
 int main(){
 
 	ofstream outfile;
-    outfile.open("Poblacion_total_CPU.dat");
+	outfile.open("Poblacion_total_CPU.dat");
 
 	int descach=round(ntachito*prop);
-    cpu_timer Reloj_CPU;
+    	cpu_timer Reloj_CPU;
 	Reloj_CPU.tic();
 	
 	bichos mosquitas(Ninicial);
@@ -243,10 +246,10 @@ int main(){
 
 		mosquitas.conteo_huevos(dia,tpupad);
 		mosquitas.mortalidades_varias(dia,tpupad);
-	    mosquitas.reproducir(dia,tpupad,tovip);
-	    mosquitas.muerte_x_vejez(dia);
+	    	mosquitas.reproducir(dia,tpupad,tovip);
+	    	mosquitas.muerte_x_vejez(dia);
 		mosquitas.descacharrado(dia,tpupad,descach);
-        mosquitas.recalcularN();
+        	mosquitas.recalcularN();
 		int vivas=mosquitas.vivos(dia);
 		outfile << dia << "\t" << vivas << endl;
 		mosquitas.envejecer(dia);
