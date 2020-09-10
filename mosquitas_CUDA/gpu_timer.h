@@ -109,4 +109,3 @@ struct gpu_timer
                             }}
 
 #endif
-
