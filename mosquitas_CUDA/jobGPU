@@ -24,12 +24,15 @@
 #$ -q gpu
 #$ -l gpu=1
 #$ -l memoria_a_usar=1G
-#$ -N bichos
+#$ -N poblacion
 
 #cargar variables de entorno para encontrar cuda
-module load cuda/8.0.61
+module load cuda/10.1.243
 
-#ejecutar el o los binarios con sus respectivos argumentos
-./bichos $1
+echo;echo
+echo "Poblacion de mosquitos para 1 manzana en CPU"
+./bichos     
 
-
+echo;echo
+echo "Población de mosquitos para 1 manzana en GPU"
+./mosquitas       
