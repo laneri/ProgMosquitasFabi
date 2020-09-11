@@ -148,7 +148,9 @@ struct bichos{
   					   }    
 				}  
    			} 
+
 		}
+
 
 		// actualiza el numero de bichos si no se sobrepasa el maximo
 		N_mobil[0]=indice;
@@ -225,6 +227,7 @@ struct bichos{
 		std::cout << "\n";
 	};
 
+
 };
 
 
@@ -232,6 +235,7 @@ int main(){
 
 	ofstream outfile;
 	outfile.open("Poblacion_total_CPU.dat");
+
 
 	int descach=round(ntachito*prop);
     	cpu_timer Reloj_CPU;
@@ -243,6 +247,7 @@ int main(){
 	
 		int tovip=tiempo_entre_oviposiciones(dia);
 		int tpupad=tiempo_pupas_adultas(dia);
+
 
 		mosquitas.conteo_huevos(dia,tpupad);
 		mosquitas.mortalidades_varias(dia,tpupad);
