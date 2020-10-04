@@ -1,5 +1,5 @@
-#include <philox.h> // philox headers
-#include <u01.h>    // to get uniform deviates [0,1]
+#include <Random123/philox.h> // philox headers
+#include <Random123/u01.h>    // to get uniform deviates [0,1]
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 #include <cstdlib>
@@ -224,12 +224,12 @@ struct bichos{
 
 	N_mobil.resize(1);
 
-	std::fill(estado.begin(),estado.end(),0);
-	std::fill(edad.begin(),edad.end(),0);
-	std::fill(tacho.begin(),tacho.end(),0);
-	std::fill(pupacion.begin(),pupacion.end(),0);
-	std::fill(TdV.begin(),TdV.end(),0);
-	std::fill(manzana.begin(),manzana.end(),0);
+	thrust::fill(estado.begin(),estado.end(),0);
+	thrust::fill(edad.begin(),edad.end(),0);
+	thrust::fill(tacho.begin(),tacho.end(),0);
+	thrust::fill(pupacion.begin(),pupacion.end(),0);
+	thrust::fill(TdV.begin(),TdV.end(),0);
+	thrust::fill(manzana.begin(),manzana.end(),0);
 	
 	// inicializacion raw pointers
 	raw_edad=thrust::raw_pointer_cast(edad.data());
@@ -286,7 +286,7 @@ struct bichos{
 	//conteo de huevos
 	void conteo_huevos(int dia){
 	int N=N_mobil[0];
-		std::fill(tach.begin(),tach.begin() + N,0);
+		thrust::fill(tach.begin(),tach.begin() + N,0);
 	    //demora demasiado
 		//conteo_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_tach,raw_N_mobil);
 		//cudaDeviceSynchronize();
