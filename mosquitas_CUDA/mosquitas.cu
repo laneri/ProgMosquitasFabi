@@ -32,63 +32,25 @@ typedef r123::Philox2x32 RNG; // particular counter-based RNG
 #define tovip2a 		    3  	    //tiempo entre dos oviposiciones (T=25)
 #define tovip2b			    4   	//tiempo entre dos oviposiciones (T=25)
 #define tovip3 			    30	    //tiempo ente dos oviposiciones (T=18)
-#define sat 			    800     //saturación de huevos por tacho
+#define sat 			    800     //saturaciรณn de huevos por tacho
 #define prop 			    0.6	    //efectividad de la propaganda
 #define SEMILLAGLOBAL	    22344888
 
 long semilla = -975;  			//semilla para el generador de numeros aleatorios ran2()
 
-__device__ __host__ int tiempo_entre_oviposiciones(int dia){
+int tiempo_entre_oviposiciones(int dia){
 	int t;
-	//defino tiempos de oviposición y maduración en función de la temperatura	
-	if(dia >= 1 && dia < 80) t=tovip3;      //<T>=18 // acá es necesario definirlo tomando el extremo
+	//defino tiempos de oviposiciรณn y maduraciรณn en funciรณn de la temperatura	
+	if(dia >= 1 && dia < 80) t=tovip3;      //<T>=18 // acรก es necesario definirlo tomando el extremo
 	if(dia >= 80 && dia <= 140)t=tovip2b;   //<T>=23
- 	//if(dia < 140 || dia > 260) t=tovip1;    //<T>=30 //acá pasa algo raro con el rango donde esta definido tovip
   	if(dia > 140 || dia < 260) t=tovip1;    //<T>=30
  	if(dia >= 260 && dia <= 320)t=tovip2a;  //<T>=27
  	if(dia > 320) t=tovip3;                 //<T>=18
 
 	return t;}
 
-__global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana,int *tach, int *N_mobil, int dia, int tovip)
-{
-    	int indice=N_mobil[0];
-	    int id = blockIdx.x*blockDim.x + threadIdx.x;
-
-  		if(id < indice)
-  		{
-  		RNG philox;         
-	    RNG::ctr_type c={{}};
-	    RNG::key_type k={{}};
-	    RNG::ctr_type r;
-	    k[0]=id; 
-	    c[1]=dia;
-	    c[0]=SEMILLAGLOBAL; 
-		
-    	r = philox(c, k); 
-     	double azar=(u01_closed_closed_32_53(r[0]));
-
-			if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id] && edad[id]%tovip == 0){
-				if (tach[tacho[id]] < sat){ 
- 					    int iovip=10 + (azar*25); 
-   						for(int ik=0;ik < iovip;ik++){ 
- 						estado[indice]=ESTADOVIVO;
- 						edad[indice]=1;   
- 						tacho[indice]=tacho[id]; 
-		         		pupacion[indice]=tpupad - 2 + (azar*5);	//dias de pupacion
-	         			TdV[indice]=azar*6 + 27;  
-						int j=tacho[indice];
- 						tach[j]++;
-						indice++;
-   						} 
-				}//cierro loop para tach  
-		    }//cierro loop para mosquitasvivas y  maduras
-  		}//cierro loop if    
-};
-
-	
 //mortalidades varias	
-__global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, int *N_mobil, int dia)
+__global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, int *TdV,int *N_mobil, int dia)
 {
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
@@ -104,23 +66,12 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 		
     	r = philox(c, k); 
      	double azar=(u01_closed_closed_32_53(r[0]));
-     	
+     	    //mortalidades varias y muerte por vejez
 		    if (estado[id]==ESTADOVIVO && edad[id] < pupacion[id]){if(azar < moracu)estado[id]=ESTADOMUERTO;}
 		    if (estado[id]==ESTADOVIVO && edad[id] == pupacion[id]){if(azar < morpupad)estado[id]=ESTADOMUERTO;}
 		    if (estado[id]==ESTADOVIVO && edad[id] > pupacion[id]){if(azar < morad)estado[id]=ESTADOMUERTO;}
+		    if (estado[id]==ESTADOVIVO && edad[id] >= TdV[id])estado[id]=ESTADOMUERTO;
 	}
-};
-
-//muerte de las mosquitas por vejez
-__global__ void matar_viejos_kernel(int *estado, int *edad, int *tacho, int *TdV,int *N_mobil,int dia)
-{
-
-	    int N=N_mobil[0];
-	    int id = blockIdx.x*blockDim.x + threadIdx.x;
-
-	    if(id<N){                     
-	        if(estado[id]==ESTADOVIVO && edad[id] >= TdV[id])estado[id]=ESTADOMUERTO;
-	    }
 };
 
 __global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pupacion,int *N_mobil,int dia, int ntach)
@@ -133,43 +84,20 @@ __global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pu
     	}
 };
 
-__global__ void envejecer_adultos_kernel(int *estado, int *edad,int *pupacion,int *N_mobil)
-{
-    	int N=N_mobil[0];
-	    int id = blockIdx.x*blockDim.x + threadIdx.x;
-
-        if(id < N){
-    				if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id])edad[id]++; //ADULTAS
-		}
-		
-};
-
-__global__ void envejecer_kernel(int *estado, int *edad,int *N_mobil)
+__global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mobil,int dia)
 {
     	int N=N_mobil[0];
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
 
         if(id<N){
-  		    if (estado[id]== ESTADOVIVO)edad[id]++;
+            if(dia < 80 || dia > 320){
+                if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id])edad[id]++;} //ADULTAS
+  		    else{
+  		        if (estado[id]== ESTADOVIVO)edad[id]++;}
     	}
 };
-//es muy lento
-/*__global__ void conteo_kernel(int *estado, int *edad,int *tacho,int *pupacion, int *tach,int *N_mobil)
-{
-       	int N=N_mobil[0];
-	    int id = blockIdx.x*blockDim.x + threadIdx.x;
-	    
-		if(id<N){
-			if(edad[id] < pupacion[id] && estado[id] == ESTADOVIVO){ 
-    			int j=tacho[id]; 
-	    		tach[j]++;
-			}
-		} 
-};
-*/
-
-// functorcito para contar acuáticos en la población
-struct poblacion_acuaticos{
+// functorcito para contar acuรกticos en la poblaciรณn
+struct poblacion_adultos{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int pupacion=thrust::get<0>(tupla);
@@ -178,8 +106,8 @@ struct poblacion_acuaticos{
 	}
 };
 
-// functorcito para contar adultos en la población
-struct poblacion_adultos{
+// functorcito para contar adultos en la poblaciรณn
+struct poblacion_acuaticos{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int pupacion=thrust::get<0>(tupla);
@@ -224,12 +152,12 @@ struct bichos{
 
 	N_mobil.resize(1);
 
-	std::fill(estado.begin(),estado.end(),0);
-	std::fill(edad.begin(),edad.end(),0);
-	std::fill(tacho.begin(),tacho.end(),0);
-	std::fill(pupacion.begin(),pupacion.end(),0);
-	std::fill(TdV.begin(),TdV.end(),0);
-	std::fill(manzana.begin(),manzana.end(),0);
+	thrust::fill(estado.begin(),estado.end(),0);
+	thrust::fill(edad.begin(),edad.end(),0);
+	thrust::fill(tacho.begin(),tacho.end(),0);
+	thrust::fill(pupacion.begin(),pupacion.end(),0);
+	thrust::fill(TdV.begin(),TdV.end(),0);
+	thrust::fill(manzana.begin(),manzana.end(),0);
 	
 	// inicializacion raw pointers
 	raw_edad=thrust::raw_pointer_cast(edad.data());
@@ -241,7 +169,7 @@ struct bichos{
 	raw_tach=thrust::raw_pointer_cast(tach.data());
 	raw_pupacion=thrust::raw_pointer_cast(pupacion.data());
 
-    std::cout<<"VoM\ttacho\tedad\tTdV\ttpupad\tmanzana" << std::endl;
+    //std::cout<<"VoM\ttacho\tedad\tTdV\ttpupad\tmanzana" << std::endl;
 	/*condiciones iniciales*/
  	for(int i=0;i < N_;i++){
 		estado[i]=ESTADOVIVO; 		    //todos vivos inicialmente
@@ -250,28 +178,21 @@ struct bichos{
 		pupacion[i]=tpupad-2+(ran2(&semilla)*5);//dia de pupacion (entre los 15 y 19 dias)
 		TdV[i]=ran2(&semilla)*6+27 ;	//tiempo de vida de 27 a 32
 		manzana[i]=(int) (i/5);         //manzana en la que se encuentra
-		std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
+		//std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
 	}
 
 	N_mobil[0]=N_;
 	};	
 
 	
-	void mortalidades_varias(int dia){
+	void mortalidades(int dia){
 
 	int N=N_mobil[0];
-	
-	    matar_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_N_mobil, dia);	
+	    //mortalidades varias y muerte por vejez
+	    matar_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_TdV,raw_N_mobil, dia);	
 		cudaDeviceSynchronize();
 	};
 	
-	//muerte por vejez
-	void muerte_x_vejez(int dia){
-	int N=N_mobil[0];
-	    matar_viejos_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_N_mobil, dia);
-		cudaDeviceSynchronize();
-	};
-
 	//descachrarrado
 	void descacharrado(int dia,int descach){
 	int N=N_mobil[0];	
@@ -286,10 +207,7 @@ struct bichos{
 	//conteo de huevos
 	void conteo_huevos(int dia){
 	int N=N_mobil[0];
-		std::fill(tach.begin(),tach.begin() + N,0);
-	    //demora demasiado
-		//conteo_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_tach,raw_N_mobil);
-		//cudaDeviceSynchronize();
+		thrust::fill(tach.begin(),tach.begin() + N,0);
 		
 		for(int i=0;i < N; i++){ 
 			if(edad[i] < pupacion[i] && estado[i] == ESTADOVIVO){ 
@@ -300,46 +218,57 @@ struct bichos{
 
 	};
 
-	//nacimientos
-	void reproducir(int dia,int tovip){	
+    //nacimientos
+	void reproducir(int dia){
+	    
 	int indice=N_mobil[0];
+	//nacimientos
 	int mosqsat=0;
-
-	//kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_tach,raw_N_mobil,dia,tovip);
-	//cudaDeviceSynchronize();
+	int tovip=tiempo_entre_oviposiciones(dia);
+	
 		for(int i=0;i < indice;i++){
 			if(estado[i] == ESTADOVIVO && edad[i] > pupacion[i] && edad[i]%tovip == 0){
-etiqueta:			if (tach[tacho[i]] < sat){ 
-//				if (tach[tacho[i]] < sat){ 
- 					    int iovip=10 + (ran2(&semilla)*25); 
+				if (tach[tacho[i]] < sat){
+					  int iovip=10 + (ran2(&semilla)*25); 
    						for(int ik=0;ik < iovip;ik++){ 
  						estado[indice]=ESTADOVIVO;
  						edad[indice]=1;   
  						tacho[indice]=tacho[i]; 
 		         		pupacion[indice]=tpupad-2+(ran2(&semilla)*5);	//dias de pupacion
 	         			TdV[indice]=ran2(&semilla)*6+27;  
+						manzana[indice]=manzana[i];
 						int j=tacho[indice];
  						tach[j]++;
 						indice++;
    						} 
-				}//cierro loop para tach
-				else{
+				}//cierro tach
+				else{	
 			        mosqsat++;   			//sumo las mosquitas que no pudieron poner en este tiempo (solo como dato)
-				         for(int j=0;j < ntachito;j++){  //si no tiene lugar en su tacho migra a otro 
+				         for(int j=0;j < ntachito;j++){      //si no tiene lugar en su tacho migra a otro 
 			          		if(tach[j] < sat){   	     // se fija si sus huevos van a tener lugar 
 			           		tacho[i]=j;          	     //se mueve
-					        goto etiqueta;               //y arranca a oviponer
-			        		}
-			       		 }
-				}//cierro loop para else
-   			} //cierro loop paramosquitas,vivas y adultas
-		}//cierro loop para indice*/
-		
+						    int iovip=10 + (ran2(&semilla)*25); 
+   							for(int ik=0;ik < iovip;ik++){ 
+ 							estado[indice]=ESTADOVIVO;
+ 							edad[indice]=1;   
+ 							tacho[indice]=tacho[i]; 
+		         			pupacion[indice]=tpupad-2+(ran2(&semilla)*5);	//dias de pupacion
+	         				TdV[indice]=ran2(&semilla)*6+27;  
+							int j=tacho[indice];
+ 							tach[j]++;
+							indice++;
+   							}
+						j=ntachito;
+						}
+					}
+				} 				
+   			} 
+		}
 		// actualiza el numero de bichos si no se sobrepasa el maximo
 		N_mobil[0]=indice;
 
 	};
-	
+
     //Recalcular -> eliminar muertos y dejar vivos
     void recalcularN(){
 
@@ -363,7 +292,7 @@ etiqueta:			if (tach[tacho[i]] < sat){
 	return poblacion;
 	};
 
-    //población de acuáticos
+    //poblaciรณn de acuรกticos
 	int acuaticos(int dia){
 
 	int N=N_mobil[0];
@@ -371,64 +300,49 @@ etiqueta:			if (tach[tacho[i]] < sat){
     int ac=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_acuaticos()
+                poblacion_adultos()
             );
 
 	return ac;
 	};
 
-    //población de adultos
+    //poblaciรณn de adultos
 	int adultos(int dia){
 
 	int N=N_mobil[0];
 	    int ad=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_adultos()
+                poblacion_acuaticos()
             );
 
 		return ad;
 	};
 
 	//envejecer poblacion
-	void envejecer(int dia){
+
+   	void envejecer(int dia){
 	int N=N_mobil[0];
-	
-	    if(dia < 80 || dia > 320){//en invierno envejecen adultos, hibernan huevos y acuaticos crecen lento
-	    envejecer_adultos_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_pupacion,raw_N_mobil);
-	    cudaDeviceSynchronize();
-	    }
-	    else{//el resto del año envejecen normal
-        envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_N_mobil);
-        cudaDeviceSynchronize();
-	    }
-	};
+        envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_pupacion,raw_N_mobil,dia);
+	}; 
 };
 
-
-
-int main(){
-
-	std::ofstream outfile, outfile1, outfile2;
+void testGPU(){
+ 	std::ofstream outfile, outfile1, outfile2;
    	outfile.open("Poblacion_total_GPU.dat");
    	outfile1.open("Poblacion_adultos_GPU.dat");
-    	outfile2.open("Poblacion_acuaticos_GPU.dat");
+    outfile2.open("Poblacion_acuaticos_GPU.dat");
 
-	int descach=round(ntachito*prop);//cantidad de tachos que vacío con la propaganda
-
-	gpu_timer Reloj_GPU;
-	Reloj_GPU.tic();
-
+	int descach=round(ntachito*prop);//cantidad de tachos que vacรญo con la propaganda   
+    
     bichos mosquitas(Ninicial);
 
 	for(int dia = 1; dia <= Ndias; dia++){
-	int tovip=tiempo_entre_oviposiciones(dia);
 
-	mosquitas.mortalidades_varias(dia);
-	mosquitas.muerte_x_vejez(dia);
+	mosquitas.mortalidades(dia);
 	mosquitas.descacharrado(dia,descach);
 	mosquitas.conteo_huevos(dia);
-	mosquitas.reproducir(dia,tovip);
+	mosquitas.reproducir(dia);
 	mosquitas.recalcularN();
 
 	int vivas=mosquitas.vivos(dia);
@@ -441,14 +355,25 @@ int main(){
 
 	}//cierro loop para dias
 
-    double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
-    printf("Tiempo en GPU: %lf minutos\n",t);
-
 //cierro archivos
 outfile.close();
 outfile1.close();
 outfile2.close();
+};
+
+int main(){
+
+	gpu_timer Reloj_GPU;
+	Reloj_GPU.tic();
+    testGPU();
+    double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
+    printf("Tiempo en GPU: %lf minutos\n",t);
+
 return 0;							
 }// end for main
+
+
+
+
 
 
