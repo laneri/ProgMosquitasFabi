@@ -1,5 +1,5 @@
-#include <philox.h> // philox headers
-#include <u01.h>    // to get uniform deviates [0,1]
+#include <Random123/philox.h> // philox headers
+#include <Random123/u01.h>    // to get uniform deviates [0,1]
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 #include <cstdlib>
@@ -14,7 +14,7 @@ typedef r123::Philox2x32 RNG; // particular counter-based RNG
 // macros utiles para CPU y GPU, y hacer desaparecer numeros magicos
 #define Ninicial	    	    5
 #define NUMEROTACHOS		    5
-#define ntachito		    5
+#define ntachito		        5
 #define MAXIMONUMEROBICHOS	    800000
 
 #define ESTADOMUERTO		    1
@@ -49,6 +49,43 @@ int tiempo_entre_oviposiciones(int dia){
 
 	return t;}
 
+/*
+__global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana,int *tach, int *N_mobil, int dia, int tovip)
+{
+    	int indice=N_mobil[0];
+	    int id = blockIdx.x*blockDim.x + threadIdx.x;
+
+  		if(id < indice)
+  		{
+  		RNG philox;         
+	    RNG::ctr_type c={{}};
+	    RNG::key_type k={{}};
+	    RNG::ctr_type r;
+	    k[0]=id; 
+	    c[1]=dia;
+	    c[0]=SEMILLAGLOBAL; 
+		
+    	r = philox(c, k); 
+     	double azar=(u01_closed_closed_32_53(r[0]));
+
+			if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id] && edad[id]%tovip == 0){
+				if (tach[tacho[id]] < sat){ 
+ 					    int iovip=10 + (azar*25); 
+   						for(int ik=0;ik < iovip;ik++){ 
+ 						estado[indice]=ESTADOVIVO;
+ 						edad[indice]=1;   
+ 						tacho[indice]=tacho[id]; 
+		         		pupacion[indice]=tpupad - 2 + (azar*5);	//dias de pupacion
+	         			TdV[indice]=azar*6 + 27;  
+						int j=tacho[indice];
+ 						tach[j]++;
+						indice++;
+   						} 
+				}//cierro loop para tach  
+		    }//cierro loop para mosquitasvivas y  maduras
+  		}//cierro loop if    
+};*/
+
 //mortalidades varias	
 __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, int *TdV,int *N_mobil, int dia)
 {
@@ -66,7 +103,7 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 		
     	r = philox(c, k); 
      	double azar=(u01_closed_closed_32_53(r[0]));
-     	    //mortalidades varias y muerte por vejez
+     	//acá incluye mortalidad de huevos,pupas y adultos con cierta probabilidad, y además muertes por vejez
 		    if (estado[id]==ESTADOVIVO && edad[id] < pupacion[id]){if(azar < moracu)estado[id]=ESTADOMUERTO;}
 		    if (estado[id]==ESTADOVIVO && edad[id] == pupacion[id]){if(azar < morpupad)estado[id]=ESTADOMUERTO;}
 		    if (estado[id]==ESTADOVIVO && edad[id] > pupacion[id]){if(azar < morad)estado[id]=ESTADOMUERTO;}
@@ -74,6 +111,18 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 	}
 };
 
+//muerte de las mosquitas por vejez
+/*__global__ void matar_viejos_kernel(int *estado, int *edad, int *tacho, int *TdV,int *N_mobil,int dia)
+{
+
+	    int N=N_mobil[0];
+	    int id = blockIdx.x*blockDim.x + threadIdx.x;
+
+	    if(id<N){                     
+	        if(estado[id]==ESTADOVIVO && edad[id] >= TdV[id])estado[id]=ESTADOMUERTO;
+	    }
+};
+*/
 __global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pupacion,int *N_mobil,int dia, int ntach)
 {
     	int N=N_mobil[0];
@@ -96,23 +145,39 @@ __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mob
   		        if (estado[id]== ESTADOVIVO)edad[id]++;}
     	}
 };
-// functorcito para contar acuรกticos en la poblaciรณn
-struct poblacion_adultos{
+
+//es muy lento
+/*__global__ void conteo_kernel(int *estado, int *edad,int *tacho,int *pupacion, int *tach,int *N_mobil)
+{
+       	int N=N_mobil[0];
+	    int id = blockIdx.x*blockDim.x + threadIdx.x;
+	    
+		if(id<N){
+			if(edad[id] < pupacion[id] && estado[id] == ESTADOVIVO){ 
+    			int j=tacho[id]; 
+	    		tach[j]++;
+			}
+		} 
+};
+*/
+
+// functorcito para contar adultos en la población
+struct poblacion_1{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int pupacion=thrust::get<0>(tupla);
         int edad=thrust::get<1>(tupla);
-		return (edad > pupacion);
+		return (edad >= pupacion);
 	}
 };
 
-// functorcito para contar adultos en la poblaciรณn
-struct poblacion_acuaticos{
+// functorcito para contar acuáticos en la población
+struct poblacion_2{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int pupacion=thrust::get<0>(tupla);
         int edad=thrust::get<1>(tupla);
-		return (edad <= pupacion);
+		return (edad < pupacion);
 	}
 };
 
@@ -188,7 +253,7 @@ struct bichos{
 	void mortalidades(int dia){
 
 	int N=N_mobil[0];
-	    //mortalidades varias y muerte por vejez
+	
 	    matar_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_TdV,raw_N_mobil, dia);	
 		cudaDeviceSynchronize();
 	};
@@ -208,6 +273,9 @@ struct bichos{
 	void conteo_huevos(int dia){
 	int N=N_mobil[0];
 		thrust::fill(tach.begin(),tach.begin() + N,0);
+	    //demora demasiado
+		//conteo_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_tach,raw_N_mobil);
+		//cudaDeviceSynchronize();
 		
 		for(int i=0;i < N; i++){ 
 			if(edad[i] < pupacion[i] && estado[i] == ESTADOVIVO){ 
@@ -219,13 +287,15 @@ struct bichos{
 	};
 
     //nacimientos
-	void reproducir(int dia){
+	void reproducir(int dia,int tovip){
 	    
 	int indice=N_mobil[0];
 	//nacimientos
 	int mosqsat=0;
-	int tovip=tiempo_entre_oviposiciones(dia);
-	
+
+	//kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_tach,raw_N_mobil,dia,tovip);
+	//cudaDeviceSynchronize();
+
 		for(int i=0;i < indice;i++){
 			if(estado[i] == ESTADOVIVO && edad[i] > pupacion[i] && edad[i]%tovip == 0){
 				if (tach[tacho[i]] < sat){
@@ -292,7 +362,7 @@ struct bichos{
 	return poblacion;
 	};
 
-    //poblaciรณn de acuรกticos
+    //población de acuáticos
 	int acuaticos(int dia){
 
 	int N=N_mobil[0];
@@ -300,26 +370,26 @@ struct bichos{
     int ac=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_adultos()
+                poblacion_1()
             );
 
 	return ac;
 	};
 
-    //poblaciรณn de adultos
+    //población de adultos
 	int adultos(int dia){
 
 	int N=N_mobil[0];
 	    int ad=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_acuaticos()
+                poblacion_2()
             );
 
 		return ad;
 	};
 
-	//envejecer poblacion
+	//envejecer población
 
    	void envejecer(int dia){
 	int N=N_mobil[0];
@@ -327,22 +397,28 @@ struct bichos{
 	}; 
 };
 
-void testGPU(){
+int main(){
+
  	std::ofstream outfile, outfile1, outfile2;
    	outfile.open("Poblacion_total_GPU.dat");
    	outfile1.open("Poblacion_adultos_GPU.dat");
     outfile2.open("Poblacion_acuaticos_GPU.dat");
 
-	int descach=round(ntachito*prop);//cantidad de tachos que vacรญo con la propaganda   
+	int descach=round(ntachito*prop);//cantidad de tachos que vacรญo con la propaganda 
+	
+	gpu_timer Reloj_GPU;
+	Reloj_GPU.tic();
     
     bichos mosquitas(Ninicial);
 
 	for(int dia = 1; dia <= Ndias; dia++){
+	int tovip=tiempo_entre_oviposiciones(dia);
 
-	mosquitas.mortalidades(dia);
+	mosquitas.mortalidades(dia);//fusione muerte x vejez con mortalidades varias en un solo kernel
+	//mosquitas.muerte_x_vejez(dia);
 	mosquitas.descacharrado(dia,descach);
 	mosquitas.conteo_huevos(dia);
-	mosquitas.reproducir(dia);
+	mosquitas.reproducir(dia,tovip);
 	mosquitas.recalcularN();
 
 	int vivas=mosquitas.vivos(dia);
@@ -353,27 +429,16 @@ void testGPU(){
 	outfile2 << dia << "\t" << acuaticos << std::endl;
 	mosquitas.envejecer(dia); 
 
-	}//cierro loop para dias
+	}
+	
+    double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
+    printf("Tiempo en GPU: %lf minutos\n",t);
+
+return 0;
 
 //cierro archivos
 outfile.close();
 outfile1.close();
 outfile2.close();
-};
-
-int main(){
-
-	gpu_timer Reloj_GPU;
-	Reloj_GPU.tic();
-    testGPU();
-    double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
-    printf("Tiempo en GPU: %lf minutos\n",t);
-
-return 0;							
 }// end for main
-
-
-
-
-
 
