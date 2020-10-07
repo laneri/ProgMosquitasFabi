@@ -11,8 +11,8 @@ Relaciones a tener en cuenta para modificar parámetros
 */
 #define Ninicial 		20		//número inicial de mosquitos para codigo GPU	
 #define MAXIMAEDAD		31 		//dias que vive la mosquita	
-#define NUMEROTACHOS		20		//máximo número de tachos 
-#define NUMEROMANZANAS		20		//número de manzanas
+#define NUMEROTACHOS		2		//máximo número de tachos 
+#define NUMEROMANZANAS		2		//número de manzanas
 #define MAXIMONUMEROBICHOS	80000	//número maximo de huevos
 #define NUMERODEESTADOS		2		//vivo(0) o muerto (1)
 #define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
