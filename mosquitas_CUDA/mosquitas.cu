@@ -49,7 +49,7 @@ int tiempo_entre_oviposiciones(int dia){
 
 	return t;}
 
-/*
+
 __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana,int *tach, int *N_mobil, int dia, int tovip)
 {
     	int indice=N_mobil[0];
@@ -67,11 +67,17 @@ __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, i
 		
     	r = philox(c, k); 
      	double azar=(u01_closed_closed_32_53(r[0]));
-
+/*Si la mosquita esta viva, esta en edad adulta y en el tiempo de oviposicion entonces*/
 			if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id] && edad[id]%tovip == 0){
+/*Si el tacho en el que nacio tiene lugar entonces*/
 				if (tach[tacho[id]] < sat){ 
  					    int iovip=10 + (azar*25); 
-   						for(int ik=0;ik < iovip;ik++){ 
+				   
+				/*Antes estaba asi y andaba...*/
+				int tach=tacho[id];     //pongo todos los huevos en el mismo tacho
+				atomicAdd(nacidos+tach,iovip); /*y nacidos???*/
+				}
+				/* 		 for(int ik=0;ik < iovip;ik++){ 
  						estado[indice]=ESTADOVIVO;
  						edad[indice]=1;   
  						tacho[indice]=tacho[id]; 
@@ -81,10 +87,11 @@ __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, i
  						tach[j]++;
 						indice++;
    						} 
-				}//cierro loop para tach  
+				}//cierro loop para tach */  
+/*Aca falta un else que diga que entonces vaya a poner a otro tacho*/
 		    }//cierro loop para mosquitasvivas y  maduras
-  		}//cierro loop if    
-};*/
+  		}//cierro loop de hilos    
+};
 
 //mortalidades varias	
 __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, int *TdV,int *N_mobil, int dia)
@@ -293,10 +300,10 @@ struct bichos{
 	//nacimientos
 	int mosqsat=0;
 
-	//kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_tach,raw_N_mobil,dia,tovip);
+	kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_tach,raw_N_mobil,dia,tovip);
 	//cudaDeviceSynchronize();
 
-		for(int i=0;i < indice;i++){
+	/* 	for(int i=0;i < indice;i++){
 			if(estado[i] == ESTADOVIVO && edad[i] > pupacion[i] && edad[i]%tovip == 0){
 				if (tach[tacho[i]] < sat){
 					  int iovip=10 + (ran2(&semilla)*25); 
@@ -333,8 +340,8 @@ struct bichos{
 					}
 				} 				
    			} 
-		}
-		// actualiza el numero de bichos si no se sobrepasa el maximo
+		} */
+//		actualiza el numero de bichos si no se sobrepasa el maximo
 		N_mobil[0]=indice;
 
 	};
