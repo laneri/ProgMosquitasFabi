@@ -50,7 +50,7 @@ int tiempo_entre_oviposiciones(int dia){
 	return t;}
 
 
-__global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana,int *tach, int *N_mobil, int dia, int tovip)
+__global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana,int *tach, int *N_mobil, int dia, int tovip, int *nacidos)
 {
     	int indice=N_mobil[0];
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
@@ -75,7 +75,7 @@ __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, i
 				   
 				/*Antes estaba asi y andaba...*/
 				int tach=tacho[id];     //pongo todos los huevos en el mismo tacho
-				atomicAdd(nacidos+tach,iovip); /*y nacidos???*/
+				atomicAdd(nacidos+tach,iovip); /*sumo iovip HUEVOS a lo que habia en la posicion (nacidos+tach)*/
 				}
 				/* 		 for(int ik=0;ik < iovip;ik++){ 
  						estado[indice]=ESTADOVIVO;
@@ -168,6 +168,21 @@ __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mob
 };
 */
 
+
+// otro functorcito usado para las estadisticas desagregadas
+struct acuaticoeneltacho{
+	int m;
+    int t;
+	acuaticoeneltacho(int m_, int t_):m(m_),t(t_){};
+    
+	__device__ bool operator()(thrust::tuple<int,int> tupla)
+	{
+        int tach=thrust::get<0>(tupla);
+        int edad=thrust::get<1>(tupla);
+		return (tach==m && edad<t);
+	}
+};
+
 // functorcito para contar adultos en la población
 struct poblacion_1{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
@@ -188,18 +203,20 @@ struct poblacion_2{
 	}
 };
 
-
+/////////////////////////////////////////////////////////////////////////////////////////
+// Clase bichos: toda la info sobre todos los bichos, y sus funciones
 struct bichos{
 
-	thrust::device_vector<int> estado;  
-	thrust::device_vector<int> edad;    
-	thrust::device_vector<int> tacho;   
-	thrust::device_vector<int> TdV; 
+	thrust::device_vector<int> estado; // Vivo o Muerto 0/1 
+	thrust::device_vector<int> edad; // tiene num de mosqu elementos y los valores van de 0 a MAXIMAEDAD   
+	thrust::device_vector<int> tacho; // 0 a NUMEROTACHOS   
+	thrust::device_vector<int> TdV;  //tiempo de vida
 	thrust::device_vector<int> pupacion; 
 	thrust::device_vector<int> manzana; 
 	thrust::device_vector<int> tach; 
+	thrust::device_vector<int> nacidos; // tiene el num de tachos elementos, numero de nacidos por tacho
 
-	thrust::device_vector<int> N_mobil; 
+	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
 
 	// punteros crudos a los arrays para pasarselos a kernels
 	int *raw_edad;
@@ -210,6 +227,7 @@ struct bichos{
 	int *raw_pupacion;
 	int *raw_N_mobil;
 	int *raw_manzana;
+	int *raw_nacidos;
 	
 	//constructor	
 	bichos(int N_){
@@ -223,6 +241,10 @@ struct bichos{
 	tach.resize(MAXIMONUMEROBICHOS);
 
 	N_mobil.resize(1);
+
+	// nacidos en cada tacho, inicialmente 0
+	nacidos.resize(NUMEROTACHOS);
+	thrust::fill(nacidos.begin(),nacidos.end(),0);
 
 	thrust::fill(estado.begin(),estado.end(),0);
 	thrust::fill(edad.begin(),edad.end(),0);
@@ -240,6 +262,7 @@ struct bichos{
 	raw_N_mobil=thrust::raw_pointer_cast(N_mobil.data());
 	raw_tach=thrust::raw_pointer_cast(tach.data());
 	raw_pupacion=thrust::raw_pointer_cast(pupacion.data());
+	raw_nacidos=thrust::raw_pointer_cast(nacidos.data());
 
     //std::cout<<"VoM\ttacho\tedad\tTdV\ttpupad\tmanzana" << std::endl;
 	/*condiciones iniciales*/
@@ -299,10 +322,48 @@ struct bichos{
 	int indice=N_mobil[0];
 	//nacimientos
 	int mosqsat=0;
+	std::cout << "antes kernel reproducir " << std::endl; 
+	// reproduce, calculando nacidos por tacho antes
+	kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_tach,raw_N_mobil,dia,tovip,raw_nacidos);
+	cudaDeviceSynchronize();
+	std::cout << "despues kernel reproducir " << std::endl; 
+		// agrega todos los nacidos al final del array original, tacho a tacho
+		int index=indice;
+        bool nosaturo=1;
+		for(int m=0;m<NUMEROTACHOS;m++){
+			//std::cout << "listo nacidos " << std::endl; 
+ 
+            //antiguos=thrust::count_if(tacho.begin(),tacho.begin()+N,iguala(m));
 
-	kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_tach,raw_N_mobil,dia,tovip);
-	//cudaDeviceSynchronize();
-
+            int antiguos=thrust::count_if(
+                thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
+                thrust::make_zip_iterator(thrust::make_tuple(tacho.end(),edad.end())),
+                acuaticoeneltacho(m,tpupad)
+            );
+            
+            int nuevos=nacidos[m];
+	//		if(tacho[m]+nacidos[m] < 800){ 						//cond. saturacion 
+            nosaturo=((index+nuevos) < MAXIMONUMEROBICHOS);
+            if((antiguos+nuevos) < 800 && nosaturo==1){ 						//cond. saturacion 
+            thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,0);	//todos vivos(0)	
+			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		//todos nacen con edad 0	
+			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	//en el tacho m
+			thrust::fill(TdV.begin()+index,TdV.begin()+index+nuevos,rand()%3+28); // con tiempo de vida 28 a 30
+			index+=nuevos;		//actualizo el indice para me marque siempre en la ultima mosquita que nacio 
+			}
+		}
+	// problema si esto satura saturan los tachos mas grandes, ver como cambiar esto por ejemplo llnando tachos al azar
+        if(nosaturo==0) std::cout << "algunos tachos no se rellenaron por saturacion del total de mosquitas" << std::endl;
+	
+		// actualiza el numero de bichos si no se sobrepasa el maximo
+		if(index<MAXIMONUMEROBICHOS) {
+			N_mobil[0]=index;
+		}
+		// caso contrario satura al maximo
+		else{
+			std::cout << "Demasiados Bichos!" << std::endl;
+			 N_mobil[0]=MAXIMONUMEROBICHOS-1;	
+		}	
 	/* 	for(int i=0;i < indice;i++){
 			if(estado[i] == ESTADOVIVO && edad[i] > pupacion[i] && edad[i]%tovip == 0){
 				if (tach[tacho[i]] < sat){
@@ -426,7 +487,7 @@ int main(){
 	mosquitas.descacharrado(dia,descach);
 	mosquitas.conteo_huevos(dia);
 	mosquitas.reproducir(dia,tovip);
-	mosquitas.recalcularN();
+	mosquitas.recalcularN(); 
 
 	int vivas=mosquitas.vivos(dia);
 	int adultos=mosquitas.adultos(dia);
