@@ -11,8 +11,8 @@ Relaciones a tener en cuenta para modificar parámetros
 */
 #define Ninicial 		20		//número inicial de mosquitos para codigo GPU	
 #define MAXIMAEDAD		31 		//dias que vive la mosquita	
-#define NUMEROTACHOS		2		//máximo número de tachos 
-#define NUMEROMANZANAS		2		//número de manzanas
+#define NUMEROTACHOS		15		//máximo número de tachos 
+#define NUMEROMANZANAS		5		//número de manzanas
 #define MAXIMONUMEROBICHOS	80000	//número maximo de huevos
 #define NUMERODEESTADOS		2		//vivo(0) o muerto (1)
 #define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
@@ -33,6 +33,16 @@ Relaciones a tener en cuenta para modificar parámetros
 #define tovip2a 3  	//tiempo entre dos oviposiciones (T=25)
 #define tovip2b 4   	//tiempo entre dos oviposiciones (T=25)
 #define tovip3 30	//tiempo ente dos oviposiciones (T=18)
-#define sat 800		//numero maximo de huevos en cada tacho
+#define SAT 8000		//numero maximo de huevos en cada tacho
 #define prop 0.6	//efectividad de la propaganda
 
+// ESto estaba en mosquitas.cu pero hay que unificar todos los parametros aca
+#define ntachito		        5 //?????????
+
+#define Ndias			    400
+
+#define tpupad	 		    17  	//pupas se vuelven adultas a los 17 dias en invierno****
+
+#define SEMILLAGLOBAL	    22344888
+
+long semilla = -975;  			//semilla para el generador de numeros aleatorios ran2()
