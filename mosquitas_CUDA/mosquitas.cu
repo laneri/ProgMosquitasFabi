@@ -48,8 +48,7 @@ __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, i
 				/*Antes estaba asi y andaba...*/
 				int tach=tacho[id];     //tach es un entero que me indica el numero de tacho en el que esta cada mosquita
 				
-				 int iovip=1;
-				 //10 + (azar*25); //iovip es el numero de huevos que pone cada mosquita
+				 int iovip=10 + (azar*25); //iovip es el numero de huevos que pone cada mosquita
 						
 				atomicAdd(nacidos+tach,iovip); /*sumo iovip HUEVOS en la posicion del vector nacidos (que tiene NTACHOS elementos)
 				nacidos[0+tach] en el puntero al primer elemento del vector nacidos desplazado en tach elementos

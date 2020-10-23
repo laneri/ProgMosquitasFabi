@@ -9,10 +9,10 @@ Relaciones a tener en cuenta para modificar parámetros
 - MAXIMONUMEROBICHOS = NUMEROMANZANAS*4000
 
 */
-#define Ninicial 		20		//número inicial de mosquitos para codigo GPU	
+#define Ninicial 		5		//número inicial de mosquitos para codigo GPU	
 #define MAXIMAEDAD		31 		//dias que vive la mosquita	
-#define NUMEROTACHOS		15		//máximo número de tachos 
-#define NUMEROMANZANAS		5		//número de manzanas
+#define NUMEROTACHOS		5		//máximo número de tachos 
+#define NUMEROMANZANAS		1		//número de manzanas
 #define MAXIMONUMEROBICHOS	80000	//número maximo de huevos
 #define NUMERODEESTADOS		2		//vivo(0) o muerto (1)
 #define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
@@ -33,8 +33,8 @@ Relaciones a tener en cuenta para modificar parámetros
 #define tovip2a 3  	//tiempo entre dos oviposiciones (T=25)
 #define tovip2b 4   	//tiempo entre dos oviposiciones (T=25)
 #define tovip3 30	//tiempo ente dos oviposiciones (T=18)
-#define SAT 8000		//numero maximo de huevos en cada tacho
-#define prop 0.6	//efectividad de la propaganda
+#define SAT 800		//numero maximo de huevos en cada tacho
+#define prop 0.01	//efectividad de la propaganda
 
 // ESto estaba en mosquitas.cu pero hay que unificar todos los parametros aca
 #define ntachito		        5 //?????????
