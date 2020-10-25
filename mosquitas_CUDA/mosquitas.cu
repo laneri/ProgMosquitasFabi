@@ -168,17 +168,8 @@ struct acuaticoeneltachoANA{
 
 
 // functorcito para contar adultos en la población
-struct poblacion_1{
-	__device__ bool operator()(thrust::tuple<int,int> tupla)
-	{
-        int pupacion=thrust::get<0>(tupla);
-        int edad=thrust::get<1>(tupla);
-		return (edad >= pupacion);
-	}
-};
 
-// functorcito para contar adultos en la población
-struct poblacion_1ANA{
+struct poblacion_adultos{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int edad=thrust::get<0>(tupla);//NUEVO: cambie el orden de la tupla
@@ -188,17 +179,7 @@ struct poblacion_1ANA{
 };
 
 // functorcito para contar acuáticos en la población
-struct poblacion_2{
-	__device__ bool operator()(thrust::tuple<int,int> tupla)
-	{
-        int pupacion=thrust::get<0>(tupla);
-        int edad=thrust::get<1>(tupla);
-		return (edad < pupacion);
-	}
-};
-
-// functorcito para contar acuáticos en la población
-struct poblacion_2ANA{
+struct poblacion_acuaticos{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int edad=thrust::get<0>(tupla); //NUEVO:cambie el orden de la tupla
@@ -420,11 +401,11 @@ std::cout << "inicializacion lista" << std::endl;
 	int acuaticos(int dia){
 
 	int N=N_mobil[0];
-	//el predicado poblacion_2()corresponde a los acuaticos
+	
     int ac=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_2ANA()
+                poblacion_acuaticos()
             );
 
 	return ac;
@@ -434,11 +415,11 @@ std::cout << "inicializacion lista" << std::endl;
 	int adultos(int dia){
 
 	int N=N_mobil[0];
-	//el predicado poblacion_1()corresponde a adultos
+	
 	    int ad=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_1ANA()
+                poblacion_adultos()
             );
 
 		return ad;
