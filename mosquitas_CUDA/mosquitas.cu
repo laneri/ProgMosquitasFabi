@@ -25,39 +25,39 @@ int tiempo_entre_oviposiciones(int dia){
 
 
 __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana, int *N_mobil, int dia, int tovip, int *nacidos)
-{
+{                                   
+
     	int indice=N_mobil[0];
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
-
-  		if(id < indice)
-  		{
-  		RNG philox;         
-	    RNG::ctr_type c={{}};
-	    RNG::key_type k={{}};
-	    RNG::ctr_type r;
-	    k[0]=id; 
-	    c[1]=dia;
-	    c[0]=SEMILLAGLOBAL; 
-		
-    	r = philox(c, k); 
-     	double azar=(u01_closed_closed_32_53(r[0]));
 /*Si la mosquita esta viva, esta en edad adulta y en el tiempo de oviposicion entonces*/
+  		if(id < indice && edad[id] > pupacion[id] && edad[id]%tovip == 0) //calculo todo solo sobre las vivas 
+  		{
+			RNG philox;         
+			RNG::ctr_type c={{}};
+			RNG::key_type k={{}};
+			RNG::ctr_type r;
+			k[0]=id; 
+			c[1]=dia;
+			c[0]=SEMILLAGLOBAL; 
+			
+			r = philox(c, k); 
+			double azar=(u01_closed_closed_32_53(r[0]));
 
-			if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id] && edad[id]%tovip == 0){
+		// estado[id] == ESTADOVIVO && edad[id]%tovip == 0){
 /*Si el tacho en el que nacio tiene lugar entonces*/
 				/*Antes estaba asi y andaba...*/
-				int tach=tacho[id];     //tach es un entero que me indica el numero de tacho en el que esta cada mosquita
+			int tach=tacho[id];     //tach es un entero que me indica el numero de tacho en el que esta cada mosquita
 				
 
-				 int iovip=10 + (azar*25); //iovip es el numero de huevos que pone cada mosquita
+			int iovip=10+ (azar*25); //iovip es el numero de huevos que pone cada mosquita
 						
-				atomicAdd(nacidos+tach,iovip); /*sumo iovip HUEVOS en la posicion del vector nacidos (que tiene NTACHOS elementos)
+			atomicAdd(nacidos+tach,iovip); /*sumo iovip HUEVOS en la posicion del vector nacidos (que tiene NTACHOS elementos)
 				nacidos[0+tach] en el puntero al primer elemento del vector nacidos desplazado en tach elementos
 				el vector nacidos tiene el numero de nacidos en cada tacho Ej: nacidos[0]=numero de nacidos en el tacho 1*/
 				
 				
-		    }//cierro loop para mosquitasvivas y  maduras
-  		}//cierro loop de hilos    
+		    //cierro loop para mosquitas maduras
+  		}//cierro loop de hilos de mosquitas VIVAS   
 };
 
 //mortalidades varias	
@@ -66,7 +66,7 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 	int N=N_mobil[0];
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 	
-	if(id<N){		
+	if(id<N){	// es lo mismo que estado[id]==ESTADOVIVO && 	
 	 	RNG philox;         
 	    RNG::ctr_type c={{}};
 	    RNG::key_type k={{}};
@@ -78,10 +78,11 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
     	r = philox(c, k); 
      	double azar=(u01_closed_closed_32_53(r[0]));
      	//acá incluye mortalidad de huevos,pupas y adultos con cierta probabilidad, y además muertes por vejez
-		    if (estado[id]==ESTADOVIVO && edad[id] < pupacion[id]){if(azar < MORACU)estado[id]=ESTADOMUERTO;}
-		    if (estado[id]==ESTADOVIVO && edad[id] == pupacion[id]){if(azar < MORPUPAD)estado[id]=ESTADOMUERTO;}
-		    if (estado[id]==ESTADOVIVO && edad[id] > pupacion[id]){if(azar < MORAD)estado[id]=ESTADOMUERTO;}
-		    if (estado[id]==ESTADOVIVO && edad[id] >= TdV[id])estado[id]=ESTADOMUERTO;
+		    if (edad[id] < pupacion[id]){if(azar < MORACU)estado[id]=ESTADOMUERTO;}
+		    if (edad[id] == pupacion[id]){if(azar < MORPUPAD)estado[id]=ESTADOMUERTO;}
+		    if (edad[id] > pupacion[id]){if(azar < MORAD)estado[id]=ESTADOMUERTO;}
+		    if (edad[id] >= TdV[id]){estado[id]=ESTADOMUERTO;}
+//TdV[id]
 	}
 };
 
@@ -90,8 +91,8 @@ __global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pu
     	int N=N_mobil[0];
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
 
-	    if(id<N){
-	    if (estado[id] == ESTADOVIVO && edad[id] < pupacion[id] && tacho[id] == ntach)estado[id]=ESTADOMUERTO;
+	    if(id<N){// esta condicion es igual a decir que la mosquita está viva
+	    if (edad[id] < pupacion[id] && tacho[id] == ntach)estado[id]=ESTADOMUERTO;
     	}
 };
 
@@ -109,6 +110,32 @@ __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mob
 };
 
 // NUEVO: otro functorcito usado para las estadisticas desagregadas
+
+// struct para generar randoms uniformes
+struct uniformRanInt{
+	int dia;
+	int medio;
+	int ancho;
+	uniformRanInt(int medio_, int ancho_, int dia_):medio(medio_),ancho(ancho_),dia(dia_)
+	{};
+
+	__device__ int operator()(int i)
+	{
+	 	RNG philox;         
+	    RNG::ctr_type c={{}};
+	    RNG::key_type k={{}};
+	    RNG::ctr_type r;
+	    k[0]=i; 
+	    c[1]=dia;
+	    c[0]=SEMILLAGLOBAL; 
+
+		r = philox(c, k); 
+     	float azar=(u01_closed_closed_32_53(r[0]));
+		return int(medio+ancho*azar);
+	}
+};	
+//thrust::transform(thrust::make_counting_iterator(0),thrust::make_counting_iterator(N),output.begin(),
+// uniformRanInt(27,5,dia));
 
 // otro functorcito usado para las estadisticas desagregadas
 struct acuaticoeneltacho{
@@ -243,13 +270,13 @@ struct bichos{
  	for(int i=0;i < N_;i++){
 		estado[i] = ESTADOVIVO; 		    //todos vivos inicialmente
 		tacho[i] = i;				        //tacho en el que se encuentra la mosquita
-		edad[i] = ran2(&semilla)*7+19; 	//edad 
+		edad[i] = ran2(&semilla)*7+19; 	//edad: son todas adultas al principio 
 		pupacion[i] = TPUPAD-2+(ran2(&semilla)*5);//dia de pupacion (entre los 15 y 19 dias)
 		TdV[i] = ran2(&semilla)*6+27 ;	//tiempo de vida de 27 a 32
 		manzana[i] = (int) (i/5);         //manzana en la que se encuentra
 		
-	//	std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
-	 //std::cout << "pupacion" << pupacion[i]<< std::endl;
+	std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
+	std::cout << "pupacion" << pupacion[i]<< std::endl;
 }
 
 std::cout << "inicializacion lista" << std::endl;
@@ -298,7 +325,6 @@ std::cout << "inicializacion lista" << std::endl;
 	std::cout << "despues kernel reproducir " << std::endl; 
 		// agrego todos los nacidos al final del array original, tacho a tacho
 		int index=indice;
-        bool nosaturo=1;
 		for(int m=0;m<NUMEROTACHOS;m++){
 			//std::cout << "listo nacidos " << std::endl; 
  
@@ -307,55 +333,60 @@ std::cout << "inicializacion lista" << std::endl;
             int antiguos=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
-                acuaticoeneltacho(m,tpupad)
+                acuaticoeneltacho(m,TPUPAD)
 			);
 
-			//NUEVO: cuento huevos por tacho m, indice=nro de bichos hasta el momento
+			/* //NUEVO: cuando el TPUPAD es variable, indice=nro de bichos hasta el momento
             int antiguosANA=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(), pupacion.begin(),tacho.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() + indice, pupacion.begin() + indice, tacho.begin() + indice)),
                 acuaticoeneltachoANA(m)
-            );
+            ); */
 			
-			std::cout << "Acuaticos en Tacho " << antiguos <<std::endl;
+			std::cout << "Acuaticos en Tacho " << antiguos << " TACHO "<< m <<std::endl;
           	//los nuevos vienen del kernel reproducir  
             int nuevos=nacidos[m];
 
-			std::cout << "NUEVOS NACIDOS " << nuevos <<std::endl; 
-			//no saturo me asegura que no me excedo del tamaño del array
-            nosaturo=((index+nuevos) < MAXIMONUMEROBICHOS);
+			if(nuevos+antiguos>SAT){
+				nuevos=SAT-antiguos;	
+			};
 
-            //NUEVO: antes la condicion era antiguos + nuevos
-            if((antiguos+nuevos) < SAT && nosaturo==1){ 						        //cond. saturacion 
+			std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
 
             thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        //NUEVO	
-			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		                //NUEVO	
+			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		                //NUEVO	
 			thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	                //nacen en el tacho m
-			thrust::fill(pupacion.begin()+index,pupacion.begin()+index+nuevos,15 + rand()%5);   //NUEVO:descomento y se pincha el codigo
-			thrust::fill(TdV.begin()+index,TdV.begin()+index+nuevos,rand()%6 + 27);               //NUEVO
+
+			//thrust::fill(pupacion.begin()+index,pupacion.begin()+index+nuevos,15);
+
+			// index en counting iteraror necesario para distintos randoms en cada tacho
+			thrust::transform(
+				thrust::make_counting_iterator(index),thrust::make_counting_iterator(index+nuevos),
+				pupacion.begin()+index,uniformRanInt(15,5,dia)
+			);
+		
+			// + rand()%5);   //NUEVO:descomento y se pincha el codigo
+		//	thrust::fill(TdV.begin()+index,TdV.begin()+index+nuevos,30);
+			//rand()%6 + 27);               //NUEVO
+			thrust::transform(
+				thrust::make_counting_iterator(index),thrust::make_counting_iterator(index+nuevos),
+				TdV.begin()+index,uniformRanInt(27,6,dia)
+			);
+
+
 			thrust::fill(manzana.begin()+index,manzana.begin()+index+nuevos,(int) m/5);         //NUEVO
 			index+=nuevos;		//actualizo el indice para me marque siempre en la ultima mosquita que nacio 
-			}else if((antiguos+nuevos) > SAT){
-				std::cout << "Nos pasamos del maximo por tacho" <<std::endl;
-			}else{std::cout << "Nos pasamos del maximo de bichos totales" << nuevos <<std::endl;}
 		}
-
-	// problema si esto satura saturan los tachos mas grandes, ver como cambiar esto por ejemplo llnando tachos al azar
-        if(nosaturo==0) std::cout << "algunos tachos no se rellenaron por saturacion del total de mosquitas" << std::endl;
-	//imprimo el indice
-	std::cout << "index " << index <<std::endl; 
 	
 	// actualiza el indice movil hasta el ultimo bicho vivo
 		if(index<MAXIMONUMEROBICHOS) {
 			N_mobil[0]=index;
 		}
-		// caso contrario satura al maximo
-		//NUEVO: esta condición no debería estar ya que permite que el sistema sature
-		/*else{
+		else{ ////satura la memoria reservada salgo del prog
 			std::cout << "Demasiados Bichos!" << std::endl;
-			 N_mobil[0]=MAXIMONUMEROBICHOS-1;	
-			}	
-		*/	
+			exit(1);
+		}	
+			
 	}	
 	
 	};
@@ -451,7 +482,7 @@ int main(){
 	std::cout << "reproducir" << std::endl;
 	mosquitas.reproducir(dia,tovip);
 	
-	std::cout << "matar" << std::endl;
+	//std::cout << "matar" << std::endl;
 	mosquitas.mortalidades(dia);//fusione muerte x vejez con mortalidades varias en un solo kernel
 
 	std::cout << "descacharrar" << std::endl;
@@ -459,6 +490,7 @@ int main(){
 	
 	std::cout << "envejezco poblacion" << std::endl;
 	mosquitas.envejecerthrust();
+	
 	
 	std::cout << "recalculo indice de mosquitas vivas" << std::endl;
 	mosquitas.recalcularN(); 
@@ -478,10 +510,12 @@ int main(){
     double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
     printf("Tiempo en GPU: %lf minutos\n",t);
 
-return 0;
-
 //cierro archivos
 outfile.close();
 outfile1.close();
 outfile2.close();
+
+return 0;
+
+
 }// end for main

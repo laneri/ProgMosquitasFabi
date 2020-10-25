@@ -3,14 +3,14 @@ Macros utiles para CPU y GPU
 Relaciones a tener en cuenta para modificar parámetros
 - NUMEROTACHOS=Ninicial
 */
-#define NINICIAL 		    5		//número inicial de mosquitos para codigo GPU	
-#define NUMEROTACHOS		5		//máximo número de tachos 
+#define NINICIAL 		    1		//número inicial de mosquitos para codigo GPU	
+#define NUMEROTACHOS		1		//máximo número de tachos 
 #define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
 #define MAXIMONUMEROBICHOS	80000	//número maximo de huevos
 
 #define ESTADOMUERTO    	1
 #define ESTADOVIVO	        0
-#define NDIAS			    400    //cantidad de dias en el año
+#define NDIAS			    700    //cantidad de dias en el año
 
 #define MORHUE              0.01   	//mortalidad de huevos
 #define MORLAR              0.01    //mortalidad de larvas 
@@ -23,7 +23,7 @@ Relaciones a tener en cuenta para modificar parámetros
 #define TOVIP2b             4   	//tiempo entre dos oviposiciones (T=25)
 #define TOVIP3              30  	//tiempo ente dos oviposiciones (T=18)
 #define SAT                 800	    //numero maximo de huevos en cada tacho
-#define PROP                0	    //efectividad de la propaganda
+#define PROP                0.6	    //efectividad de la propaganda
 
 
 #define TPUPAD  		    17  	//pupas se vuelven adultas a los 17 dias en invierno****
