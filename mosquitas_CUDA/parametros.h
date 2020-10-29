@@ -28,9 +28,9 @@ Relaciones a tener en cuenta para modificar parรกmetros
 
 #define TPUPAD  		    17  	//pupas se vuelven adultas a los 17 dias en invierno****
 
-#define SEMILLAGLOBAL	   	22399989
-//#define SEMILLAGLOBAL	   	12345789
+//#define SEMILLAGLOBAL	   	22399989
+#define SEMILLAGLOBAL	   	123456789
 //#define SEMILLAGLOBAL	   	975
 
-long semilla = -975;  			//semilla para el generador de numeros aleatorios ran2()
+long semilla = -739;  			//semilla para el generador de numeros aleatorios ran2()
 
