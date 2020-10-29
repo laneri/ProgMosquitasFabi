@@ -40,7 +40,7 @@ __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, i
 			c[0]=SEMILLAGLOBAL; 
 			
 			r = philox(c, k); 
-			double azar=(u01_closed_closed_32_53(r[0]));
+			double azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
 
 		// estado[id] == ESTADOVIVO && edad[id]%tovip == 0){
 /*Si el tacho en el que nacio tiene lugar entonces*/
@@ -75,12 +75,20 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 	    c[0]=SEMILLAGLOBAL; 
 		
     	r = philox(c, k); 
-     	double azar=(u01_closed_closed_32_53(r[0]));
-     	//acá incluye mortalidad de huevos,pupas y adultos con cierta probabilidad, y además muertes por vejez
-		    if (edad[id] < pupacion[id]){if(azar < MORACU)estado[id]=ESTADOMUERTO;}
-		    if (edad[id] == pupacion[id]){if(azar < MORPUPAD)estado[id]=ESTADOMUERTO;}
-		    if (edad[id] > pupacion[id]){if(azar < MORAD)estado[id]=ESTADOMUERTO;}
-		    if (edad[id] >= TdV[id]){estado[id]=ESTADOMUERTO;}
+    	double azar;
+    	/*CORRECCIÓN: ahora sorteo tres nros al azar y  comparo con las mortalidades,en coherencia a lo que hacía la función en SERIAL*/
+    	
+     	azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
+     	if (edad[id] < pupacion[id]){if(azar < MORACU)estado[id]=ESTADOMUERTO;}
+
+     	azar=(u01_closed_open_32_53(r[0]));
+     	if (edad[id] == pupacion[id]){if(azar < MORPUPAD)estado[id]=ESTADOMUERTO;}
+
+     	azar=(u01_closed_open_32_53(r[0]));
+		if (edad[id] > pupacion[id]){if(azar < MORAD)estado[id]=ESTADOMUERTO;}     	
+
+        //envejecer
+		if (edad[id] >= TdV[id]){estado[id]=ESTADOMUERTO;}
 	}
 };
 
@@ -126,7 +134,7 @@ struct uniformRanInt{
 	    c[0]=SEMILLAGLOBAL; 
 
 		r = philox(c, k); 
-     	float azar=(u01_closed_closed_32_53(r[0]));
+     	float azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
 		return int(medio+ancho*azar);
 	}
 };	
@@ -245,7 +253,7 @@ struct bichos{
 		tacho[i]=i;			        	    //tacho en el que se encuentra la mosquita
 		edad[i]=ran2(&semilla)*7+19; 		//edad 
 		pupacion[i]=TPUPAD - 2 + (ran2(&semilla)*5);    //dia de pupacion (entre los 15 y 19 dias)
-		TdV[i]=ran2(&semilla)*6+27 ;	 ón//tiempo de vida de 27 a 32
+		TdV[i]=ran2(&semilla)*6+27 ;	 //tiempo de vida de 27 a 32
 		manzana[i]=(int) (i/5);
 		std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\n";
 	}
@@ -258,28 +266,27 @@ struct bichos{
 
 	int N=N_mobil[0];
 	//mortalidades varias y muerte por vejez
+	/*Corrección 1: en el código secuencial  llamabamos tres veces al generador de nros aleatorios para eliminar huevos,pupas y adultos, mientras que en el kernel solamente sorteabamos un nro al azar y comparabamos. Para ello sortee 3 nros al azar en el kernel, pero la poblacion seguía cayendo a 0 en el dia= 316,independientemente de la SEMILLAGLOBAL que utilicemos para philox, es decir, no había mas mosquitas que reproducir. Finalmente, yendo a la función descacharrado() e imprimiendo el ntach (tacho a descacharrar),el nro de acuáticos en el tacho, el nro de mosquitas que se reproducen y el nro de mosquitas despues de eliminar muertos, me di cuenta que simplemente teníamos mala suerte. A veces salia sorteado el tacho donde estaban todos los acuáticos o antiguos, entonces todas los acuáticos pasaban a ESTADOMUERTO y al siguiente dia no habia mosquitas para reproducir.
+	Solución: cambié la semilla para el generador de nros aleatorios ran2(), paso de -975 a -739 que era un nro que estaba en el código de Fabi comentado*/
+	
 	    matar_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_TdV,raw_N_mobil, dia);	
 		cudaDeviceSynchronize();
+        //SERIAL
+	/*		for(int i=0;i < N;i++){
+			if (estado[i] == ESTADOVIVO && edad[i] < pupacion[i]){if(ran2(&semilla) < MORACU)estado[i]=ESTADOMUERTO;}
+			if (estado[i] == ESTADOVIVO && edad[i] == pupacion[i]){if(ran2(&semilla) < MORPUPAD)estado[i]=ESTADOMUERTO;}
+			if (estado[i] == ESTADOVIVO && edad[i] > pupacion[i]){if(ran2(&semilla) < MORAD)estado[i]=ESTADOMUERTO;}  
+			if (estado[i] == ESTADOVIVO && edad[i] >= TdV[i])estado[i]=ESTADOMUERTO;
+		}  //del indice */
 	};
 
 	//descachrarrado
 	void descacharrado(int dia,int descach){
 	int N=N_mobil[0];
-	    // SERIAL
-		/*	if(dia%7 == 0 && dia > 120 && dia < 320){
-  			for(int itach=0;itach < descach;itach++){
-    		    int ntach=ran2(&semilla)*NUMEROTACHOS;
-				for(int i=0;i < N;i++){
-  					if (estado[i] == ESTADOVIVO && edad[i] < pupacion[i] && tacho[i] == ntach)estado[i]=ESTADOMUERTO;
-				}
-			}    	
-   		}*/
-   		//CUDA
 		if(dia%7 == 0 && dia > 120 && dia < 320){
   			for(int itach=0;itach < descach;itach++){
-  			    /*ESTO ES RARO: al parecer no le gusta ntach=ran2(&semilla)*NUMEROTACHOS el cual sortea nros random entre [0,NUMEROTACHOS)(1), asi que lo que hice fue tirar nros random entre [0,NUMEROTACHOS] y si ntach=NUMEROTACHOS=5 entonces vuelvo a sortear otro nro random que caiga  en el intervalo (1), haciendo esto la poblacion de mosquitas no me cae a 0, probe con varias semillaglobal y el resultado no es tan sensible a la variación de la semilla, algo que si observabamos antes. Ahora, esto está bien ?*/
-    			int ntach=ran2(&semilla)*NUMEROTACHOS + 1;//ntach=(0,1,2,3,4) + 1 
-    			if(ntach==NUMEROTACHOS)ntach=ran2(&semilla)*NUMEROTACHOS;// ntach= (0,1,2,3,4)
+    			int ntach=ran2(&semilla)*NUMEROTACHOS;
+    			std::cout << ntach << "\n";
   				descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,ntach);
   				cudaDeviceSynchronize();
 			}    	
@@ -326,7 +333,7 @@ struct bichos{
                 acuaticoeneltachoANA(m)
             ); 
             
-			//std::cout << "Acuaticos en Tacho " << antiguos << " TACHO "<< m <<std::endl;
+			std::cout << "Acuaticos en Tacho " << antiguos << " TACHO "<< m <<std::endl;
           	//los nuevos vienen del kernel reproducir  
             int nuevos=nacidos[m];
             //me parece que si sucede esta condición  la mosquita tiene que irse a otro tachito, se podria hilar la transferencia de tacho aquí
@@ -334,7 +341,7 @@ struct bichos{
 				nuevos=SAT-antiguos;	
 			};
 
-			//std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
+			std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
 
             thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        //estado del nacido	
 			thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		                //edad del nacido: dia 1 y no 0 	
@@ -359,6 +366,7 @@ struct bichos{
 	// actualiza el indice movil hasta el ultimo bicho vivo
 		if(index<MAXIMONUMEROBICHOS) {
 			N_mobil[0]=index;
+            std::cout << "N_mobil[0]\t" << N_mobil[0] << "\n";
 		}
 		else{ ////satura la memoria reservada salgo del prog
 			std::cout << "Demasiados Bichos!" << std::endl;
@@ -381,6 +389,8 @@ struct bichos{
 		// y ahora determinamos la posicion del primer muerto = N_mobil
 		auto iter=thrust::find(estado.begin(),estado.begin() + N, ESTADOMUERTO);
 		N_mobil[0]= iter-estado.begin();//me da la longitud del vector
+		
+        std::cout << "N_mobil[0]\t" << N_mobil[0] << "\n";
 	};
 	
 	int vivos(int dia){
@@ -432,21 +442,21 @@ struct bichos{
 int main(){
 
 	std::ofstream outfile, outfile1, outfile2;
-    	outfile.open("Poblacion_total_GPU.dat");
+    outfile.open("Poblacion_total_GPU.dat");
    	outfile1.open("Poblacion_adultos_GPU.dat");
-    	outfile2.open("Poblacion_acuaticos_GPU.dat");
+    outfile2.open("Poblacion_acuaticos_GPU.dat");
 
 	int descach=round(NUMEROTACHOS*PROP);//cantidad de tachos que vacío con la propaganda
 
 	gpu_timer Reloj_GPU;
 	Reloj_GPU.tic();
 
-    	bichos mosquitas(NINICIAL);
+    bichos mosquitas(NINICIAL);
     //cambié el orden de las funciones y las ordené de acuerdo  al código C++ y Fortran, el orden que tenia anteriormente afectaba el resultado
     
 	for(int dia = 1; dia <= NDIAS; dia++){
 	std::cout << "DIA" << dia << std::endl;
-    	int tovip=tiempo_entre_oviposiciones(dia);
+    int tovip=tiempo_entre_oviposiciones(dia);
 	
 	std::cout << "matar" << std::endl;
 	mosquitas.mortalidades(dia);//fusione muerte x vejez con mortalidades varias en un solo kernel
