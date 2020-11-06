@@ -438,7 +438,7 @@ struct bichos{
 				if(nuevos+antiguos>SAT){
 					nuevos=SAT-antiguos;	
 					
-								
+				/*NUEVO Para transferir de tacho*/				
 					int manzanadeltacho = manzana_del_tacho[m];
 					int cuantos=(tachos_por_manzana[manzanadeltacho]).size();
 
@@ -461,7 +461,7 @@ struct bichos{
 						transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
 					);
 				}
-
+				/*HASTA ACA TRANSFIERE DE TACHO*/
 
 				std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
 
