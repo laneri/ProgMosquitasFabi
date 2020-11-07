@@ -14,15 +14,14 @@ typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 int tiempo_entre_oviposiciones(int dia){
 	int t;
-	//defino tiempos de oviposiciรณn y maduraciรณn en funciรณn de la temperatura	
-	if(dia >= 1 && dia < 80) t=TOVIP3;      //<T>=18 // acรก es necesario definirlo tomando el extremo
+	//defino tiempos de oviposición y maduración en función de la temperatura	
+	if(dia >= 1 && dia < 80) t=TOVIP3;      //<T>=18 // acá es necesario definirlo tomando el extremo
 	if(dia >= 80 && dia <= 140)t=TOVIP2b;   //<T>=23
   	if(dia > 140 || dia < 260) t=TOVIP1;    //<T>=30
  	if(dia >= 260 && dia <= 320)t=TOVIP2a;  //<T>=27
  	if(dia > 320) t=TOVIP3;                 //<T>=18
 
 	return t;}
-
 
 __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, int *pupacion,int *manzana, int *N_mobil, int dia, int tovip, int *nacidos)
 {                                   
@@ -41,7 +40,7 @@ __global__ void kernel_reproducir(int *estado, int *edad, int *tacho,int *TdV, i
 			c[0]=SEMILLAGLOBAL; 
 			
 			r = philox(c, k); 
-			double azar=(u01_closed_closed_32_53(r[0]));
+			double azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
 
 			// estado[id] == ESTADOVIVO && edad[id]%tovip == 0){
 			/*Si el tacho en el que nacio tiene lugar entonces*/
@@ -76,13 +75,20 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 	    c[0]=SEMILLAGLOBAL; 
 		
     	r = philox(c, k); 
-     	double azar=(u01_closed_closed_32_53(r[0]));
-     	//acá incluye mortalidad de huevos,pupas y adultos con cierta probabilidad, y además muertes por vejez
-		    if (edad[id] < pupacion[id]){if(azar < MORACU)estado[id]=ESTADOMUERTO;}
-		    if (edad[id] == pupacion[id]){if(azar < MORPUPAD)estado[id]=ESTADOMUERTO;}
-		    if (edad[id] > pupacion[id]){if(azar < MORAD)estado[id]=ESTADOMUERTO;}
-		    if (edad[id] >= TdV[id]){estado[id]=ESTADOMUERTO;}
-//TdV[id]
+    	double azar;
+    	/*CORRECCIÓN: ahora sorteo tres nros al azar y  comparo con las mortalidades,en coherencia a lo que hacía la función en SERIAL*/
+    	
+     	azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
+     	if (edad[id] < pupacion[id]){if(azar < MORACU)estado[id]=ESTADOMUERTO;}
+
+     	azar=(u01_closed_open_32_53(r[0]));
+     	if (edad[id] == pupacion[id]){if(azar < MORPUPAD)estado[id]=ESTADOMUERTO;}
+
+     	azar=(u01_closed_open_32_53(r[0]));
+		if (edad[id] > pupacion[id]){if(azar < MORAD)estado[id]=ESTADOMUERTO;}     	
+
+        //envejecer
+		if (edad[id] >= TdV[id]){estado[id]=ESTADOMUERTO;}
 	}
 };
 
@@ -91,14 +97,12 @@ __global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pu
     	int N=N_mobil[0];
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
 
-	    if(id<N){// esta condicion es igual a decir que la mosquita está viva
+	    if(id<N){// esta condicion es igual a decir que la mosquita estรก viva
 	    if (edad[id] < pupacion[id] && tacho[id] == ntach)estado[id]=ESTADOMUERTO;
     	}
 };
 
-
-
-
+//elimine el estado[id]=ESTADOVIVO, ya que al final sólo quedan las mosquitas vivas
 __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mobil,int dia)
 {
     	int N=N_mobil[0];
@@ -106,9 +110,9 @@ __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mob
 
         if(id<N){
             if(dia < 80 || dia > 320){
-                if(estado[id] == ESTADOVIVO && edad[id] > pupacion[id])edad[id]++;} //ADULTAS
+                if(edad[id] > pupacion[id])edad[id]++;} //ADULTAS
   		    else{
-  		        if (estado[id]== ESTADOVIVO)edad[id]++;}
+  		        edad[id]++;}
     	}
 };
 
@@ -175,7 +179,7 @@ struct uniformRanInt{
 	    c[0]=SEMILLAGLOBAL; 
 
 		r = philox(c, k); 
-     	float azar=(u01_closed_closed_32_53(r[0]));
+     	float azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
 		return int(medio+ancho*azar);
 	}
 };	
@@ -215,18 +219,15 @@ struct acuaticoeneltachoANA{
     
 	__device__ bool operator()(thrust::tuple<int,int,int> tupla)
 	{
-        int pupacion=thrust::get<0>(tupla);
+        int tacho=thrust::get<0>(tupla);
         int edad=thrust::get<1>(tupla);
-        int tacho=thrust::get<2>(tupla);
-		return (edad < pupacion && tacho==m);
+        int pupacion=thrust::get<2>(tupla);
+		return (tacho==m && edad < pupacion);
 	}
 };
 
-
-
-// functorcito para contar adultos en la población
-
-struct poblacion_adultos{
+//functorcito para contar adultos en la población
+struct poblacion_1{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int edad=thrust::get<0>(tupla);//NUEVO: cambie el orden de la tupla
@@ -236,7 +237,7 @@ struct poblacion_adultos{
 };
 
 // functorcito para contar acuáticos en la población
-struct poblacion_acuaticos{
+struct poblacion_2{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
 	{
         int edad=thrust::get<0>(tupla); //NUEVO:cambie el orden de la tupla
@@ -257,8 +258,6 @@ __global__ void tachosenmanzana(int manzananum)
 };
 */
 
-/////////////////////////////////////////////////////////////////////////////////////////
-// Clase bichos: toda la info sobre todos los bichos, y sus funciones
 struct bichos{
 
 	// arrays grandes en device, numero_mosquitas elementos: info de cada mosquita
@@ -375,21 +374,36 @@ struct bichos{
 	}
 	
 	void mortalidades(int dia){
-		int N=N_mobil[0];
+
+	int N=N_mobil[0];
+	//mortalidades varias y muerte por vejez
+	/*Corrección 1: en el código secuencial  llamabamos tres veces al generador de nros aleatorios para eliminar huevos,pupas y adultos, mientras que en el kernel solamente sorteabamos un nro al azar y comparabamos. Para ello sortee 3 nros al azar en el kernel, pero la poblacion seguía cayendo a 0 en el dia= 316,independientemente de la SEMILLAGLOBAL que utilicemos para philox, es decir, no había mas mosquitas que reproducir. Finalmente, yendo a la función descacharrado() e imprimiendo el ntach (tacho a descacharrar),el nro de acuáticos en el tacho, el nro de mosquitas que se reproducen y el nro de mosquitas despues de eliminar muertos, me di cuenta que simplemente teníamos mala suerte. A veces salia sorteado el tacho donde estaban todos los acuáticos o antiguos, entonces todas los acuáticos pasaban a ESTADOMUERTO y al siguiente dia no habia mosquitas para reproducir.
+	Solución: cambié la semilla para el generador de nros aleatorios ran2(), paso de -975 a -739 que era un nro que estaba en el código de Fabi comentado*/
+	
 	    matar_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_TdV,raw_N_mobil, dia);	
 		cudaDeviceSynchronize();
+        //SERIAL
+	/*		for(int i=0;i < N;i++){
+			if (estado[i] == ESTADOVIVO && edad[i] < pupacion[i]){if(ran2(&semilla) < MORACU)estado[i]=ESTADOMUERTO;}
+			if (estado[i] == ESTADOVIVO && edad[i] == pupacion[i]){if(ran2(&semilla) < MORPUPAD)estado[i]=ESTADOMUERTO;}
+			if (estado[i] == ESTADOVIVO && edad[i] > pupacion[i]){if(ran2(&semilla) < MORAD)estado[i]=ESTADOMUERTO;}  
+			if (estado[i] == ESTADOVIVO && edad[i] >= TdV[i])estado[i]=ESTADOMUERTO;
+		}  //del indice */
 	};
-	
+
 	//descachrarrado
 	void descacharrado(int dia,int descach){
-	int N=N_mobil[0];	
+	int N=N_mobil[0];
 		if(dia%7 == 0 && dia > 120 && dia < 320){
   			for(int itach=0;itach < descach;itach++){
     			int ntach=ran2(&semilla)*NUMEROTACHOS;
+    			std::cout << ntach << "\n";
   				descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,ntach);
+  				cudaDeviceSynchronize();
 			}    	
    		}
 	};
+
 
     //nacimientos
 	void reproducir(int dia,int tovip)
@@ -500,7 +514,7 @@ struct bichos{
 		}	
 		
 	};
-
+	
     //Recalcular -> eliminar muertos y dejar vivos
     void recalcularN(){
 
@@ -509,15 +523,13 @@ struct bichos{
 		// ordenamos segun estado 0-vivo, 1-muerto
 		int N=N_mobil[0];
 		thrust::sort_by_key(estado.begin(), estado.begin() + N,zip_iterator);		
-		//std::cout << "N en recalcular N " << N <<std::endl; 
+	
 		// y ahora determinamos la posicion del primer muerto = N_mobil
 		auto iter=thrust::find(estado.begin(),estado.begin() + N, ESTADOMUERTO);
-		
 		N_mobil[0]= iter-estado.begin();//me da la longitud del vector
 		//std::cout << "N_mobil " << N_mobil[0] <<std::endl;
 	};
 	
-	// Numero de mosquitas vivas
 	int vivos(int dia){
 
 	int N=N_mobil[0];
@@ -526,7 +538,7 @@ struct bichos{
 	return poblacion;
 	};
 
-    //población de acuáticos
+    //poblaciรณn de acuรกticos
 	int acuaticos(int dia){
 
 	int N=N_mobil[0];
@@ -534,7 +546,7 @@ struct bichos{
     int ac= thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_acuaticos()
+                poblacion_2()
             );
 
 		return ac;
@@ -544,87 +556,74 @@ struct bichos{
 	int adultos(int dia){
 
 	int N=N_mobil[0];
-	
+	//el predicado poblacion_1()corresponde a adultos
 	    int ad=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin() + N)),
-                poblacion_adultos()
+                poblacion_1()
             );
 
 		return ad;
-	};
+	};	
 
 	//envejecer población
-
    	void envejecer(int dia){
 	int N=N_mobil[0];
         envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_pupacion,raw_N_mobil,dia);
+        cudaDeviceSynchronize();
 	}; 
-
-	// Envejezco a toda la población un día (aumento en 1): recorre los bichos y les aumenta la edad en una unidad
-	void envejecerthrust(){
-	int N=N_mobil[0];
-	using namespace thrust::placeholders;
-	//envejecen las que estan vivas por eso hasta N 	
-	thrust::transform(edad.begin(),edad.begin()+N, edad.begin(),_1+1);
-	
-	};
 };
+
 
 
 int main(){
 
- 	std::ofstream outfile, outfile1, outfile2;
-   	outfile.open("Poblacion_total_GPU.dat");
+	std::ofstream outfile, outfile1, outfile2;
+    outfile.open("Poblacion_total_GPU.dat");
    	outfile1.open("Poblacion_adultos_GPU.dat");
     outfile2.open("Poblacion_acuaticos_GPU.dat");
 
-	int descach=round(NUMEROTACHOS*PROP);//cantidad de tachos que vacรญo con la propaganda 
-	
+	int descach=round(NUMEROTACHOS*PROP);//cantidad de tachos que vacío con la propaganda
+
 	gpu_timer Reloj_GPU;
 	Reloj_GPU.tic();
-    
-    bichos mosquitas(NINICIAL);
 
+    bichos mosquitas(NINICIAL);
+    //cambié el orden de las funciones y las ordené de acuerdo  al código C++ y Fortran, el orden que tenia anteriormente afectaba el resultado
+    
 	for(int dia = 1; dia <= NDIAS; dia++){
-	int tovip=tiempo_entre_oviposiciones(dia);
+	std::cout << "DIA" << dia << std::endl;
+    int tovip=tiempo_entre_oviposiciones(dia);
 	
-	std::cout << "reproducir" << std::endl;
-	mosquitas.reproducir(dia,tovip);
-	
-	//std::cout << "matar" << std::endl;
+	std::cout << "matar" << std::endl;
 	mosquitas.mortalidades(dia);//fusione muerte x vejez con mortalidades varias en un solo kernel
 
 	std::cout << "descacharrar" << std::endl;
 	mosquitas.descacharrado(dia,descach); 
-	
-	std::cout << "envejezco poblacion" << std::endl;
-	mosquitas.envejecerthrust();
-	
-	std::cout << "recalculo indice de mosquitas vivas" << std::endl;
-	mosquitas.recalcularN(); 
 
-	std::cout << "DIA" << dia << std::endl;
+	std::cout << "reproducir" << std::endl;
+	mosquitas.reproducir(dia,tovip);
+
+	std::cout << "recalcular indice de mosquitas vivas" << std::endl;
+	mosquitas.recalcularN(); 
 
 	int vivas=mosquitas.vivos(dia);
 	int adultos=mosquitas.adultos(dia);
 	int acuaticos=mosquitas.acuaticos(dia);
+
 	outfile << dia << "\t" << vivas << std::endl;
 	outfile1 << dia << "\t" << adultos << std::endl;
 	outfile2 << dia << "\t" << acuaticos << std::endl;
-	 
 
+	std::cout << "envejecer poblacion" << std::endl;
+	mosquitas.envejecer(dia);
+	
 	}
-
     double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
     printf("Tiempo en GPU: %lf minutos\n",t);
-
 //cierro archivos
 outfile.close();
 outfile1.close();
 outfile2.close();
-
-return 0;
-
-
+return 0;							
 }// end for main

@@ -7,7 +7,7 @@ RANDOM123=-I./include/
 
 all: ${APP}
 
-%: %.cu 
+%: %.cu parametros.h
 	nvcc -std=c++11 -O2 -o  $@ $< -Wno-deprecated-gpu-targets $(RANDOM123)
 
 clean:
