@@ -2,6 +2,7 @@
 #include <Random123/u01.h>    // to get uniform deviates [0,1]
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
+
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
