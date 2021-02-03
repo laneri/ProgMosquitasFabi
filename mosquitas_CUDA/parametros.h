@@ -1,16 +1,17 @@
 /*
 Macros utiles para CPU y GPU
 Relaciones a tener en cuenta para modificar parรกmetros
-- NUMEROTACHOS=Ninicial
+- NUMEROTACHOS=NRO DE MOSQUITAS de manera que se considere una hembra adulta por tacho  
+- NUMEROTACHOS esta distribuido de forma aleatoria en el NUMEROMANZANAS ingresado
 */
 
-#define NINICIAL	    	5
-#define NUMEROTACHOS		5
-#define MAXIMONUMEROBICHOS	80000
+#define NUMEROTACHOS		    8
+#define NUMEROMANZANAS      6
+#define MAXIMONUMEROBICHOS	60000000
 
 #define ESTADOMUERTO		1
-#define ESTADOVIVO		    0
-#define NDIAS			    400
+#define ESTADOVIVO		  0
+#define NDIAS			      400
 
 #define MORHUE 			    0.01   	//mortalidad de huevos
 #define MORLAR 			    0.01    //mortalidad de larvas 
@@ -23,8 +24,8 @@ Relaciones a tener en cuenta para modificar parรกmetros
 #define TOVIP2a 		    3  	    //tiempo entre dos oviposiciones (T=25)
 #define TOVIP2b			    4   	//tiempo entre dos oviposiciones (T=25)
 #define TOVIP3 			    30	    //tiempo ente dos oviposiciones (T=18)
-#define SAT 			    800     //saturaciรณn de huevos por tacho
-#define PROP 			    0.6	    //efectividad de la propaganda
+#define SAT 			      800     //saturaciรณn de huevos por tacho
+#define PROP 			      0.6	    //efectividad de la propaganda
 
 #define TPUPAD  		    17  	//pupas se vuelven adultas a los 17 dias en invierno****
 
