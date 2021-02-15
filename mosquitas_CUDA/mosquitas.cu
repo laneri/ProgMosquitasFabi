@@ -338,10 +338,12 @@ struct bichos{
 			edad[i] = ran2(&semilla)*7+19; 	//edad: son todas adultas al principio 
 			pupacion[i] = TPUPAD-2+(ran2(&semilla)*5);//dia de pupacion (entre los 15 y 19 dias)
 			TdV[i] = ran2(&semilla)*6+27 ;	//tiempo de vida de 27 a 32
-			manzana[i] = (int)(i/5);         //manzana en la que se encuentra
+						
+			tachos_por_manzana[manzana[i]].push_back(tacho[i]); //me cuenta cuantos tachos tengo en la manzana para despues sortear
 			
-			tachos_por_manzana[manzana[i]].push_back(tacho[i]);
-			manzana_del_tacho[tacho[i]]=manzana[i];
+			//asigno los tachos a las manzanas al azar
+			manzana_del_tacho[tacho[i]]=int(ran2(&semilla)*NUMEROMANZANAS); //manzana en la que está el tacho m la asigno al azar 
+			manzana[i]=manzana_del_tacho[tacho[i]]; //manzana en la que está el bicho i
 
 			std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
 			std::cout << "pupacion" << pupacion[i]<< std::endl;
@@ -438,7 +440,7 @@ struct bichos{
 					thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
 					acuaticoeneltacho(m,TPUPAD)
 				);
-
+				std::cout << "ACUATICOS " << antiguos <<" TACHO "<< m <<std::endl;
 				/* //NUEVO: cuando el TPUPAD es variable, indice=nro de bichos hasta el momento
 				int antiguosANA=thrust::count_if(
 					thrust::make_zip_iterator(thrust::make_tuple(edad.begin(), pupacion.begin(),tacho.begin())),
@@ -476,9 +478,9 @@ struct bichos{
 						transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
 					);
 				}
-				/*HASTA ACA TRANSFIERE DE TACHO*/
+				/*HASTA ACA TRANSFIERE DE TACHO DENTRO DE UNA MISMA MANZANA*/
 
-				std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
+				std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m << " MANZANA "<< manzana_del_tacho[m] << std::endl; 
 
 				thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        //NUEVO	
 				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		                //NUEVO	

@@ -7,11 +7,11 @@ Relaciones a tener en cuenta para modificar parรกmetros
 #define NUMEROTACHOS		7		//máximo número de tachos 
 #define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
 #define MAXIMONUMEROBICHOS	80000	//número maximo de huevos
-
+#define NUMEROMANZANAS		16		//número de manzanas que sea L*L=4*4
 
 #define ESTADOMUERTO		1
 #define ESTADOVIVO		    0
-#define NDIAS			    400
+#define NDIAS			    10
 
 #define MORHUE 			    0.01   	//mortalidad de huevos
 #define MORLAR 			    0.01    //mortalidad de larvas 
