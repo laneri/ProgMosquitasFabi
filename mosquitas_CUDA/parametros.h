@@ -5,13 +5,13 @@ Relaciones a tener en cuenta para modificar parรกmetros
 - NUMEROTACHOS esta distribuido de forma aleatoria en el NUMEROMANZANAS ingresado
 */
 
-#define NUMEROTACHOS		    8
-#define NUMEROMANZANAS      6
+#define NUMEROTACHOS		25
+#define NUMEROMANZANAS      25
 #define MAXIMONUMEROBICHOS	60000000
 
 #define ESTADOMUERTO		1
-#define ESTADOVIVO		  0
-#define NDIAS			      400
+#define ESTADOVIVO		    0
+#define NDIAS			    400
 
 #define MORHUE 			    0.01   	//mortalidad de huevos
 #define MORLAR 			    0.01    //mortalidad de larvas 
@@ -24,8 +24,8 @@ Relaciones a tener en cuenta para modificar parรกmetros
 #define TOVIP2a 		    3  	    //tiempo entre dos oviposiciones (T=25)
 #define TOVIP2b			    4   	//tiempo entre dos oviposiciones (T=25)
 #define TOVIP3 			    30	    //tiempo ente dos oviposiciones (T=18)
-#define SAT 			      800     //saturaciรณn de huevos por tacho
-#define PROP 			      0.6	    //efectividad de la propaganda
+#define SAT 			    800     //saturaciรณn de huevos por tacho
+#define PROP 			    0.6	    //efectividad de la propaganda
 
 #define TPUPAD  		    17  	//pupas se vuelven adultas a los 17 dias en invierno****
 
@@ -33,5 +33,8 @@ Relaciones a tener en cuenta para modificar parรกmetros
 #define SEMILLAGLOBAL	   	123456789
 //#define SEMILLAGLOBAL	   	975
 
+//******************************************** NUEVO ******************************************************************
 long semilla = -739;  			//semilla para el generador de numeros aleatorios ran2()
-
+int L=sqrt(NUMEROMANZANAS);     //nro para la dimensión de la matriz de manzanas
+int filas = L;
+int columnas = L;
