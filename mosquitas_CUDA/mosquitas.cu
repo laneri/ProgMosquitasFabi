@@ -1,5 +1,7 @@
-#include <philox.h> // philox headers
-#include <u01.h>    // to get uniform deviates [0,1]
+/*  19-02-21 defini vectores y matrices para la manzana y primeros vecinos, faltaría incluir la función de transferencia de manzana y de tacho  */
+
+#include <Random123/philox.h> // philox headers
+#include <Random123/u01.h>    // to get uniform deviates [0,1]
 typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 #include <curand.h>
@@ -21,7 +23,7 @@ typedef r123::Philox2x32 RNG; // particular counter-based RNG
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
     
-std::ofstream outfile, outfile1, outfile2,outfile3,outfile4,outfile5;
+std::ofstream outfile, outfile1, outfile2,outfile3,outfile4,outfile5,outfile6;
 	
 int tiempo_entre_oviposiciones(int dia){
 	int t;
@@ -280,6 +282,25 @@ __global__ void tachosenmanzana(int manzananum)
 };
 */
 
+//condiciones de bordes períodicas
+void CB(int L,int *xminus, int *xplus)
+{
+  int i;
+
+  /// para xplus
+  for (i=0;i<L-1;i++)
+  {
+    xplus[i]=i+1;
+  }
+  xplus[L-1]=0;
+  ///para xminus
+  for (i=0;i<L;i++)
+  {
+    xminus[i]=i-1;
+  }
+  xminus[0]=L-1;
+}
+
 struct bichos{
 
 	// arrays grandes en device, numero_mosquitas elementos: info de cada mosquita
@@ -296,11 +317,14 @@ struct bichos{
 	// arrays mediano en host, numero_manzanas elementos
 	std::vector<std::vector<int> > tachos_por_manzana; //tachos_por_manzana[i]=vector de tachos de manzana i 
 
+    //arrays para las manzanas vecinos
+	std::vector<std::vector<int> > vecinos_por_manzana;
+	
 	// numero de tachos elementos
 	std::vector<int> manzana_del_tacho;
 
-    	//array para almacenar nro de tachos por manzana
-   	thrust::device_vector<int> NroTachos;
+    //array para almacenar nro de tachos por manzana
+    thrust::device_vector<int> NroTachos;
     
 	// array de un elemento = device variable
 	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
@@ -330,7 +354,7 @@ struct bichos{
 
 		//tachos_por_manzana.resize(int(N_/5.0));
 		tachos_por_manzana.resize(NUMEROMANZANAS);
-
+    	vecinos_por_manzana.resize(NUMEROMANZANAS);
 		manzana_del_tacho.resize(MAXIMONUMEROBICHOS);
 
         NroTachos.resize(NUMEROMANZANAS);
@@ -399,6 +423,120 @@ struct bichos{
         }
 
 		outfile3 << "inicializacion lista:\n" << "Nro de Tachos\t" << NUMEROTACHOS << "\n" << "Nro de Manzanas\t" << NUMEROMANZANAS <<std::endl;
+
+//******************************************* NUEVO *******************************************		
+	//defino matriz donde voy a poner los elementos del vector v[i]
+	int *xminus,*xplus;//para las condiciones de borde
+	int **Mmanzana;	
+
+	//aloco memoria para las condiciones de borde
+	xminus= (int*)malloc(L*sizeof(int));
+	xplus= (int*)malloc(L*sizeof(int));
+
+	//aloco memoria para la matrices
+	Mmanzana = (int **)malloc(filas*sizeof(int*)); 
+	
+	for (int i=0;i<filas;i++){ 
+		Mmanzana[i] = (int*)malloc(columnas*sizeof(int));}
+
+// llenar matrices
+outfile6 << "MATRIZ PARA LAS MANZANAS" << "\n";
+
+for(int i=0;i<filas;i++){
+   for(int j=0;j<columnas;j++){
+      Mmanzana[i][j] = i*L + j;
+      outfile6 << Mmanzana[i][j] << "\t";
+   }
+outfile6 << "\n";
+}
+
+outfile6 << "\n";
+
+//chequeo
+for(int m=0; m<NUMEROTACHOS ; m++){
+      outfile6 << "tacho\t"<< tacho[m] << "\t se encuentra en la manzana: \t" << manzana_del_tacho[tacho[m]] << "\n";
+   }
+
+
+outfile6 << "\n";
+
+//condiciones de contorno períodicas
+CB(L,xminus,xplus); 
+
+//std::cout << "1ros VECINOS UTILIZANDO CB PERIODICAS\n";
+int p=0;
+int *v,*M;
+v=(int*)malloc(filas*columnas*4*sizeof(int));
+M=(int*)malloc(filas*columnas*4*sizeof(int));
+
+//En el array v[] los 4 primeros elementos corresponden a los primeros vecinos de la manzana 0,luego los siguientes 4 elementos corresponden a los vecinos de la manzana 1 y así ...
+
+for(int i=0;i<filas;i++){
+   for(int j=0;j<columnas;j++){
+   //descomentar si se quiere vizualizar los 1eros vecinos de cada elemento de la matriz Mmanzana[i][j]
+    //  std::cout << "nodo(i,j)\t\t\t" << "(" << i <<"," << j << ")"<< "\t"<< Mmanzana[i][j]<< "\n";
+    //  std::cout << "elemento Mmanzana(i,j-1)\t" << "(" << i <<"," << j-1 << ")"<< "\t"<< Mmanzana[i][xminus[j]] << "\n";
+    //  std::cout << "elemento Mmanzana(i-1,j)\t" << "(" << i-1 <<"," << j << ")"<< "\t"<< Mmanzana[xminus[i]][j] << "\n";
+    //  std::cout << "elemento Mmanzana(i,j+1)\t" << "(" << i <<"," << j+1 << ")"<< "\t"<< Mmanzana[i][xplus[j]] << "\n";
+    //  std::cout << "elemento Mmanzana(i+1,j)\t" << "(" << i+1 <<"," << j << ")"<< "\t"<< Mmanzana[xplus[i]][j] << "\n";
+    //  std::cout<<"\n";	
+    		
+      v[p]=Mmanzana[i][xminus[j]];
+      p++;
+      v[p]= Mmanzana[xminus[i]][j];
+      p++;
+      v[p] = Mmanzana[i][xplus[j]];
+      p++;
+      v[p]= Mmanzana[xplus[i]][j];
+      p++;
+	
+   }
+
+}
+
+
+//en el array M[] los primeros 4 elementos son cero para indicar que corresponden a la manzana 0, los siguientes 4 elementos son 1 para indicar que corresponden a la manzana 1, y así....
+for(int i=0;i<4*filas*columnas;i++){
+M[i]=(int)i/4;
+vecinos_por_manzana[M[i]].push_back(v[i]);
+//std::cout << M[i] << "\t" << v[i] << "\n";//chequeado que funciona
+}
+
+
+//output: para cada manzana imprime las manzanas vecinas que se encuentran ahi
+
+	for(int i=0;i<nmanzanas;i++){
+	outfile6 << "\n\n manzana " << i << "\n manzanas vecinas: ";
+			int nvecinos=vecinos_por_manzana[i].size();
+			int contVecinos=0;
+			for(int j=0;j<nvecinos;j++){
+				outfile6 << (vecinos_por_manzana[i])[j] << ", ";//vecino j  de la manzana i
+				contVecinos++;
+			}
+			outfile6 << "\n Nro de vecinos en la manzana\t" << contVecinos << "\n";
+			outfile6 << std::endl;
+		}
+
+
+			outfile6 <<  "\t   vecinos |" << "  Tachos" << "\n";					
+			for(int i=0;i<nmanzanas;i++){//loop sobre las manzanas
+			outfile6 << "MANZANA: " << i << "\n";
+					for(int j=0;j<4;j++){
+					outfile6 << "\t\t" << (vecinos_por_manzana[i])[j]<<"\t";
+					int k=(vecinos_por_manzana[i])[j];
+					int nTachos=tachos_por_manzana[k].size();
+						for(int j=0;j<nTachos;j++){
+						outfile6 << (tachos_por_manzana[k])[j] << ", ";//tacho que se encuentra en la manzana
+						}
+					outfile6 << "\n";									
+					}
+			outfile6 << "\n";		
+			}
+			outfile6 << "\n";
+
+//todos los outputs anteriores lo guardo en un archivo de salida datos_espacialidad.dat para chequeo utilizar un NUMERODETACHOS que sea un número cuadrado perfect L^2. Ya que la dimensión de la matriz donde almaceno las manzanas es de LxL
+
+//************************************* hasta acá lo nuevo *********************************************************			
 		N_mobil[0]=N_;
 	};	
 
@@ -420,44 +558,114 @@ struct bichos{
 
 	//descachrarrado
 
-	//void descacharrado(int dia,float *E){//DESCOMENTAR para una efectividad de propaganda distinta para cada manzana y cte durante los dias de descacharrado. 
+	//void descacharrado(int dia,float *E){
 
-	void descacharrado(int dia){//DESCOMENTAR para una efectividad de propaganda distinta para cada manzana y que varia durante los dias de descacharrado. 
+	void descacharrado(int dia,int descach){
+	//void descacharrado(int dia){
 
-	//void descacharrado(int dia,int descach){//DESCOMENTAR para una efectividad fija 0.6, igual para todas las manzanas, y constante durante los dias de descacharrado.	
-		/*if(dia%7 == 0 && dia > 120 && dia < 320){
+	int N=N_mobil[0];
+
+	/*la efectividad de la propaganda es prop=0.6,
+	el nro de tachos a descacharrar descachr=round(prop*NUMEROTACHOS)
+	qué tachos se descacharran ntach= nro random entre [0,NUMEROTACHOS)*/    
+	
+		if(dia%7 == 0 && dia > 120 && dia < 320){
   			for(int itach=0;itach < descach;itach++){
     			int ntach=ran2(&semilla)*NUMEROTACHOS;
     			std::cout << "tacho que se descacharran\t" << ntach << "\n";
   				descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,ntach);
   				cudaDeviceSynchronize();
 			}    	
-   		}*/
-
-                int N=N_mobil[0];
-
-   		thrust::device_vector<int> D(28); //array para almacenar los dias que se descacharra
+   		}
+   		/*
+   		La idea principal es considerar distintas efectividad de propaganda para cada manzana.
+   		Para ello lo que hago es generar un número random entre [0,0.8) en cada manzana.
+   		Para saber la cantidad de tachos que se van a eliminar en cada manzana, multiplico el Nro de Tachos de esa manzana por la efectividad. 
+   		Finalmente, tiro un número aleatorio para eliminar el tacho.
+   		*/
+   		/*thrust::device_vector<int> D(28); //array para almacenar los dias que se descacharra
    		thrust::device_vector<float> E(NUMEROMANZANAS);  //un array para almacenar la efectividad de propaganda x manzana
    		
+   		//son 28 dias de descacharrado
+   		//son 10 manzanas, cada una con un efectividad distinta y aleatoria
+
    		int j=0;
    		
    		if(dia%7 == 0 && dia > 120 && dia < 320){
    		    D[j]=dia;
    		    for(int i=0;i < NUMEROMANZANAS;i++){
-   		    E[i]=ran2(&semilla)*0.8;//para generar distinta efectividad por manzana y por dia que se descacharra
-   		    int NroDescach=round(NroTachos[i]*E[i]);//Nro de Tachos de esa manzana por la efectividad
+   		    E[i]=ran2(&semilla)*0.8;//para generar distinta efectividad x manzana cada dia que se descacharra
+   		    int NroDescach=round(NroTachos[i]*E[i]);
    		    outfile5 << D[j] << "\t" << i << "\t" << E[i] << "\t" << NroTachos[i] << "\t" << NroDescach << std::endl;
   			    for(int itach=0;itach < NroDescach;itach++){
-    	    			int ntach=(tachos_por_manzana[i])[itach];//identifica los tachos que se encuentran en la manzana para eliminar
+    	    	int ntach=(tachos_por_manzana[i])[itach];//identifica los tachos que se encuentran en la manzana para eliminar
   				descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,ntach);
   				cudaDeviceSynchronize();
 			    }//cierro for para eliminar los tachos
    		    }//cierro for para las manzanas
    		    outfile5 << "\n";
    		    j++;//incremento el contador para los elementos en D[j]
-   		}//cierro if
-	};
+   		}//cierro if*/
+	};//CIERRO FUNCION DESCACHARRAR
+	
+//********************************************* NUEVO *****************************************************************
+    //función para elegir una nueva manzana, identificando sus manzanas vecinas y sorteando entre ellas.
+	int sortear_manzana(int manzanadeltacho){
+	
+			int k;
+			
+				int i=manzanadeltacho; //manzana del tacho saturado
+				std::cout << "MANZANA del tacho saturado: "<< i << "\n";
+				int j=0;
+                //4: nro de vecinos por manzana
+					while(j<4){ 
+					k=(vecinos_por_manzana[i])[j];//para cada valor de j identifico una manzana vecina
+					int nTachos=tachos_por_manzana[k].size();//es el nro de tachos en esa manzana vecina
+					int azar=ran2(&semilla)*NUMEROMANZANAS;//nro random entre [0,k) 
+					std::cout << "Manzana vecina: " << k <<" azar: " << azar << " nro de tachos: " << nTachos << "\n"; 
+					if(nTachos!=0 && k!=azar){//si hay tachos en la manzana vecinay además el nro sorteado es distinto de la manzana vecina 
+						std::cout<< "Manzana vecina sorteada: " << k << " nTachos: " << nTachos <<"\n";//imprimime los tachos en la manzana vecina sorteada
+							for(int l=1;l<=nTachos;l++){
+							std::cout <<  (tachos_por_manzana[k])[l] << ", ";//tachos de la manzana vecina elegida
+							}
+						j=4;//bandera para que se ejecute una sóla vez y salga del while
+						std::cout << "\n";	
+						}
+					j++;								
+					}
+			std::cout << "\n";
+	return k;
+	}	
 
+ //función para sortear tacho en la nueva manzana	
+	int sortear_tacho(int manzanadeltacho){
+				int t;
+				int j=0;
+				
+					int k=manzanadeltacho;//k es la nueva manzana
+					int nTachos=tachos_por_manzana[k].size();//cuantos tachos tiene la nueva manzana
+					std::cout << "Manzana nueva: " << k << "\t" << "Nro de tachos en la manzana: " << nTachos << "\n"; 
+						for(int l=0;l<nTachos;l++){
+						std::cout <<  (tachos_por_manzana[k])[l] << ", ";//imprimo tachos de la nueva manzana
+						}
+						std::cout << "\n";
+						    //elijo nuevo tacho
+							while(j<nTachos){
+							//std::cout <<  (tachos_por_manzana[k])[j] << "\n";//tachos de la manzana nueva
+							double azart=ran2(&semilla);//nro al azar entre [0,1)]
+								if(azart < 0.5){
+								t=(tachos_por_manzana[k])[j];
+								std::cout <<  "nuevo tacho: "<< t << "\n";//imprimo nuevo tacho para que la mosquita deposite huevos
+								j=nTachos;//bandera para que se ejecute una sóla vez y salga del while
+								}
+							j++;
+							std::cout << "\n";
+							}
+						
+	return t;		
+	
+	}
+//********************************************* hasta acá lo nuevo ******************************************************
 
     //nacimientos
 	void reproducir(int dia,int tovip)
@@ -501,26 +709,26 @@ struct bichos{
 				int nuevos=nacidos[m];
 
 				if(nuevos+antiguos>SAT){
-					nuevos=SAT-antiguos;	
+				nuevos=SAT-antiguos;	
 					
-				/*NUEVO Para transferir de tacho*/				
-					int manzanadeltacho = manzana_del_tacho[m];
+				/*NUEVO Para transferir de tacho (KARI)*/				
+				/*	int manzanadeltacho = manzana_del_tacho[m];
 					int cuantos=(tachos_por_manzana[manzanadeltacho]).size();
 
-					std::cout << "tacho que se satura " << m <<" y la manzana del tacho saturado es " << manzanadeltacho;
-					std::cout << ", en esa manzana hay " << cuantos << " tachos para sortear\n";
+					//std::cout << "tacho que se satura " << m <<" y la manzana del tacho saturado es " << manzanadeltacho;
+					//std::cout << ", en esa manzana hay " << cuantos << " tachos para sortear\n";
 
 					
 					int* ptr_h=(tachos_por_manzana[manzanadeltacho]).data();
 					thrust::device_vector<int> tachosDeLaManzana(cuantos);
 					for(int k=0;k<cuantos;k++){
 						tachosDeLaManzana[k]=ptr_h[k];
-						std::cout << "Manzana " << m << " tacho " << tachosDeLaManzana[k] << "\n";
+						//std::cout << "Manzana " << m << " tacho " << tachosDeLaManzana[k] << "\n";
 					}					
 					
 					int* ptr_d=thrust::raw_pointer_cast(tachosDeLaManzana.data());
 					
-					/*Esta transformación aplica una función unaria a cada elemento de una secuencia de entrada y almacena el resultado en la posición correspondiente en una secuencia de salida. En este caso aplica la función unaria transferirdetacho() a tacho */					
+					//Esta transformación aplica una función unaria a cada elemento de una secuencia de entrada y almacena el resultado en la posición correspondiente en una secuencia de salida. En este caso aplica la función unaria transferirdetacho() a tacho 					
 					thrust::transform(
 						thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
 						thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
@@ -528,13 +736,32 @@ struct bichos{
 						tacho.begin(),
 						transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
 					);
-				}
+				}*/
 				/*HASTA ACA TRANSFIERE DE TACHO*/
-
-			    std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
+				
+//*************************************NUEVO: TRANSFERENCIA DE MANZANA Y DE TACHO (ANA)*********************************
+                int manzanadeltacho=manzana_del_tacho[m];//identifico manzana del tacho saturado
+                int manzanaNueva=sortear_manzana(manzanadeltacho);//luego sorteo entre las manzanas vecinas y elijo una manzana nueva
+                
+                int m=sortear_tacho(manzanaNueva);//defino nuevo tacho
+                manzana_del_tacho[m]=manzanaNueva;//manzana del nuevo tacho
+                        //cuento acuáticos en el nuevo tacho
+                        int antiguos=thrust::count_if(
+					    thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
+					    thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
+					    acuaticoeneltacho(m,TPUPAD)
+				        );
+				        if(nuevos+antiguos>SAT){
+				        nuevos=SAT-antiguos;//redefino	
+				        }
+				        
+				}
+//*************************************  HASTA ACÁ TRANSFERENCIA DE MANZANA Y DE TACHO***********************************
+				
+			    //std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
 
 				thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        //NUEVO	
-				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		                //NUEVO	
+				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		                //NUEVO	
 				thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	                //nacen en el tacho m
 
 				//thrust::fill(pupacion.begin()+index,pupacion.begin()+index+nuevos,15);
@@ -688,31 +915,68 @@ int main(){
     outfile3.open("Condiciones_iniciales_GPU.dat");	//imprime condiciones iniciales
     outfile4.open("Dia_vs_manzana_vs_N.dat");		//imprime en columnas Dia | manzana | Nro de mosquitas en la manzana
     outfile5.open("Dia_vs_manzana_vs_efectividad.dat");	//imprime en columnas Dia | manzana | efectividad | Nro de Tachos | Nro de tachos que se descacharran
+    outfile6.open("datos_espacialidad.dat");	//imprime la matriz para las manzanas, tachos por manzan, 1ros vecinos y tachos por 1eros vecinos
+
+
     
     outfile << "dia\t" << "N"<< std::endl;//N=Adultos + Acuáticos
     outfile1 << "dia\t" << "Ad"<< std::endl; //Adultos
     outfile2 << "dia\t" << "Ac" << std::endl;//Acuáticos
     outfile5 << "dia\t" << "manz.\t" << "efect.\t" << "NTachos\t"<< "NDescach"<<std::endl;
 
-	//int descach=round(NUMEROTACHOS*PROP);//cantidad de tachos que vacío con la propaganda
-
 	gpu_timer Reloj_GPU;
 	Reloj_GPU.tic();
+
+    /*Para generar números aleatorios enteros  con distribución de Poisson*/
+    /*unsigned int *poisson_numbers_d,*poisson_numbers_h;
+    curandGenerator_t rng;
+    
+        //memory allocate 
+        poisson_numbers_h = (unsigned int *)malloc(NTACHOS*sizeof(unsigned int));
+        CUDA_CALL(cudaMalloc((void **)&poisson_numbers_d,NTACHOS*sizeof(unsigned int)));        
+    
+        
+        //Create a pseudo-random number generator
+	    CURAND_CALL(curandCreateGenerator(&rng, CURAND_RNG_PSEUDO_DEFAULT));
+
+	    //set seed
+	    CURAND_CALL(curandSetPseudoRandomGeneratorSeed(rng, 1234ULL));
+
+        //function used to generate Poisson-distributed integer values based on a Poisson distribution with the given lamb da.
+	    CURAND_CALL(curandGeneratePoisson(rng,poisson_numbers_d,NTACHOS,NUMEROMANZANAS));
+	    
+	    CUDA_CALL(cudaMemcpy(poisson_numbers_h, poisson_numbers_d,NTACHOS*sizeof(unsigned int),cudaMemcpyDeviceToHost));
+                
+	    for(int p=0;p<NTACHOS;p++){
+        std::cout<< p << "\t" << poisson_numbers_h[p] << std::endl;
+	    }*/
+
+    /*CONCIDICION INICIAL*/
+    /*float *E;//array cuyos elementos esla efectividad de propaganda en cada manzana
+    E= (float *)malloc((NUMEROMANZANAS)*sizeof(float));    
+
+    for(int j=0;j<NUMEROMANZANAS;j++){
+			E[j]=ran2(&semilla)*0.8;//elementos que van desde [0,0.8)
+			//std::cout << j << "\t" << E[j] << std::endl;
+	}*/
 	
-	/*NUMEROTACHOS=NRO DE MOSQUITAS es un valor que se ingresa en archivo parametro.h*/		
-	bichos mosquitas(NUMEROTACHOS);
+	/*NTACHOS=NRO DE MOSQUITAS es un valor que se ingresa en archivo parametro.h*/		
+    bichos mosquitas(NUMEROTACHOS);
+    int descach=round(NUMEROTACHOS*PROP);//cantidad de tachos que vacío con la propaganda
+
+    //cambié el orden de las funciones y las ordené de acuerdo  al código C++ y Fortran, el orden que tenia anteriormente afectaba el resultado
     
 	for(int dia = 1; dia <= NDIAS; dia++){
 	std::cout << "DIA" << dia << std::endl;
-    	int tovip=tiempo_entre_oviposiciones(dia);
+    int tovip=tiempo_entre_oviposiciones(dia);
 	
 	std::cout << "matar" << std::endl;
 	mosquitas.mortalidades(dia);//fusione muerte x vejez con mortalidades varias en un solo kernel
 
 	std::cout << "descacharrar" << std::endl;
-	//mosquitas.descacharrado(dia,descach); //DESCOMENTAR para una efectividad fija 0.6, igual para todas las manzanas, y constante durante los dias de descacharrado.
-    	mosquitas.descacharrado(dia);//DESCOMENTAR para una efectividad de propaganda distinta para cada manzana y que varia durante los dias de descacharrado. 
-    	//mosquitas.descacharrado(dia,E);//DESCOMENTAR para una efectividad de propaganda distinta para cada manzana y cte durante los dias de descacharrado. 
+	mosquitas.descacharrado(dia,descach); //considerando una efectividad inicial fija 0.6 como condicion inicial
+    //mosquitas.descacharrado(dia);// considerando una efectividad distinta en cada manzana durante los dias de descacharrado 
+    //mosquitas.descacharrado(dia,E);// considerando que la efectividad en cada manzana es la misma durante los dias de descacharrado 
 
 	std::cout << "reproducir" << std::endl;
 	mosquitas.reproducir(dia,tovip);
@@ -744,6 +1008,7 @@ outfile2.close();
 outfile3.close();
 outfile4.close();
 outfile5.close();
+outfile6.close();
 
 /*Cleanup*/
 /*CURAND_CALL(curandDestroyGenerator(rng));
