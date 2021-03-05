@@ -625,7 +625,7 @@ vecinos_por_manzana[M[i]].push_back(v[i]);
 					std::cout << "Manzana vecina: " << k <<" azar: " << azar << " nro de tachos: " << nTachos << "\n"; 
 					if(nTachos!=0 && k!=azar){//si hay tachos en la manzana vecinay además el nro sorteado es distinto de la manzana vecina 
 						std::cout<< "Manzana vecina sorteada: " << k << " nTachos: " << nTachos <<"\n";//imprimime los tachos en la manzana vecina sorteada
-							for(int l=1;l<=nTachos;l++){
+							for(int l=0;l<nTachos;l++){
 							std::cout <<  (tachos_por_manzana[k])[l] << ", ";//tachos de la manzana vecina elegida
 							}
 						j=4;//bandera para que se ejecute una sóla vez y salga del while
