@@ -637,34 +637,6 @@ vecinos_por_manzana[M[i]].push_back(v[i]);
 	return k;
 	}	
 
- //función para sortear tacho en la nueva manzana	
-	int sortear_tacho(int manzanadeltacho){
-				int t;
-				int j=0;
-				
-					int k=manzanadeltacho;//k es la nueva manzana
-					int nTachos=tachos_por_manzana[k].size();//cuantos tachos tiene la nueva manzana
-					std::cout << "Manzana nueva: " << k << "\t" << "Nro de tachos en la manzana: " << nTachos << "\n"; 
-						for(int l=0;l<nTachos;l++){
-						std::cout <<  (tachos_por_manzana[k])[l] << ", ";//imprimo tachos de la nueva manzana
-						}
-						std::cout << "\n";
-						    //elijo nuevo tacho
-							while(j<nTachos){
-							//std::cout <<  (tachos_por_manzana[k])[j] << "\n";//tachos de la manzana nueva
-							double azart=ran2(&semilla);//nro al azar entre [0,1)]
-								if(azart < 0.5){
-								t=(tachos_por_manzana[k])[j];
-								std::cout <<  "nuevo tacho: "<< t << "\n";//imprimo nuevo tacho para que la mosquita deposite huevos
-								j=nTachos;//bandera para que se ejecute una sóla vez y salga del while
-								}
-							j++;
-							std::cout << "\n";
-							}
-						
-	return t;		
-	
-	}
 //********************************************* hasta acá lo nuevo ******************************************************
 
     //nacimientos
@@ -679,7 +651,7 @@ vecinos_por_manzana[M[i]].push_back(v[i]);
 
 		//nacimientos
 		//std::cout << "antes kernel reproducir " << std::endl;
-		//reinicializo en cero los nacidos en el paso anterior que ahora ya no son mas nacidos porque crecieron 
+		//reinicializo en 0 a los nacidos en el paso anterior que ahora ya no son mas nacidos porque crecieron 
 		thrust::fill(nacidos.begin(),nacidos.end(),0);
 
 		// reproduce, calculando nacidos por tacho antes
@@ -690,19 +662,20 @@ vecinos_por_manzana[M[i]].push_back(v[i]);
 			// agrego todos los nacidos al final del array original, tacho a tacho
 			int index=indice;
 			for(int m=0;m<NUMEROTACHOS;m++){
-				//calculo el nunmero de acuaticos en cada tacho
+//************************************************************* SOLO TRANSFERENCIA DE TACHO **************************************************************			    
+				/*calculo el nunmero de acuaticos en cada tacho
 				int antiguos=thrust::count_if(
 					thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
 					thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
 					acuaticoeneltacho(m,TPUPAD)
 				);
 
-				 //NUEVO: cuando el TPUPAD es variable, indice=nro de bichos hasta el momento
-                /*int antiguos=thrust::count_if(
+				 // cuando el TPUPAD es variable, indice=nro de bichos hasta el momento
+                //int antiguos=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(), edad.begin(),pupacion.begin())),
                 thrust::make_zip_iterator(thrust::make_tuple(tacho.begin() + indice, edad.begin() + indice, pupacion.begin() + indice)),
                 acuaticoeneltachoANA(m)
-                );*/ 
+                ); 
 				
 				//std::cout << "Acuaticos en Tacho " << antiguos << " TACHO "<< m <<std::endl;
 				//los nuevos vienen del kernel reproducir  
@@ -711,8 +684,8 @@ vecinos_por_manzana[M[i]].push_back(v[i]);
 				if(nuevos+antiguos>SAT){
 				nuevos=SAT-antiguos;	
 					
-				/*NUEVO Para transferir de tacho (KARI)*/				
-				/*	int manzanadeltacho = manzana_del_tacho[m];
+				//NUEVO Para transferir de tacho (KARI)				
+					int manzanadeltacho = manzana_del_tacho[m];
 					int cuantos=(tachos_por_manzana[manzanadeltacho]).size();
 
 					//std::cout << "tacho que se satura " << m <<" y la manzana del tacho saturado es " << manzanadeltacho;
@@ -739,30 +712,50 @@ vecinos_por_manzana[M[i]].push_back(v[i]);
 				}*/
 				/*HASTA ACA TRANSFIERE DE TACHO*/
 				
-//*************************************NUEVO: TRANSFERENCIA DE MANZANA Y DE TACHO (ANA)*********************************
-                int manzanadeltacho=manzana_del_tacho[m];//identifico manzana del tacho saturado
-                int manzanaNueva=sortear_manzana(manzanadeltacho);//luego sorteo entre las manzanas vecinas y elijo una manzana nueva
+//*******************************************************  NUEVO: TRANSFERENCIA DE MANZANA Y DE TACHO (ANA) ***********************************************
+
+                //cuento los acúaticos en el tacho= m
+		int antiguos=thrust::count_if(
+			thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
+			thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
+			acuaticoeneltacho(m,TPUPAD)
+			);
+				
+		int nuevos=nacidos[m];
+
+                //me fijo si los acúaticos viejos + los nuevos nacidos saturan el tacho=m
+			if(nuevos+antiguos>SAT){
+			nuevos=SAT-antiguos;
+				
+                	int manzanadeltacho=manzana_del_tacho[m];//identifico manzana del tacho saturado
+                	int manzanaNueva=sortear_manzana(manzanadeltacho);//luego sorteo entre las manzanas vecinas y elijo una manzana nueva
                 
-                int m=sortear_tacho(manzanaNueva);//defino nuevo tacho
-                manzana_del_tacho[m]=manzanaNueva;//manzana del nuevo tacho
-                        //cuento acuáticos en el nuevo tacho
-                        int antiguos=thrust::count_if(
-					    thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
-					    thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
-					    acuaticoeneltacho(m,TPUPAD)
-				        );
-				        if(nuevos+antiguos>SAT){
-				        nuevos=SAT-antiguos;//redefino	
-				        }
-				        
-				}
+                	int cuantos=(tachos_por_manzana[manzanaNueva]).size();//cuento tachos en la manzana nueva
+
+	    		int* ptr_h=(tachos_por_manzana[manzanaNueva]).data();
+		    	thrust::device_vector<int> tachosDeLaManzana(cuantos);
+			    	for(int k=0;k<cuantos;k++){
+						tachosDeLaManzana[k]=ptr_h[k];}					
+					
+			int* ptr_d=thrust::raw_pointer_cast(tachosDeLaManzana.data());
+					
+			//Esta transformación aplica una función unaria a cada elemento de una secuencia de entrada y almacena el resultado en la posición correspondiente en una secuencia de salida. En este caso aplica la función unaria transferirdetacho() a tacho 					
+			thrust::transform(
+				thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
+				thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
+				thrust::make_counting_iterator(0),
+				tacho.begin(),
+				transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
+			    	);
+				
+ 			}//cierro IF 
 //*************************************  HASTA ACÁ TRANSFERENCIA DE MANZANA Y DE TACHO***********************************
 				
 			    //std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
 
-				thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        //NUEVO	
-				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		                //NUEVO	
-				thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	                //nacen en el tacho m
+				thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        	
+				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		                //NUEVO los nacidos tienen edad 1	
+				thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	                
 
 				//thrust::fill(pupacion.begin()+index,pupacion.begin()+index+nuevos,15);
 
