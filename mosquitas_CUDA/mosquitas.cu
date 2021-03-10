@@ -269,15 +269,17 @@ struct bichos{
 	thrust::device_vector<int> pupacion; //dia de paso de pupa a adulta de cada mosquita
 	thrust::device_vector<int> manzana; //numero de manzana de cada mosquita
 
-	// arrays medianos em device, numero_tachos elementos
+	// arrays medianos en device, numero_tachos elementos
 	thrust::device_vector<int> nacidos; // tiene el num de tachos elementos, numero de nacidos por tacho
 
-	// arrays mediano en host, numero_manzanas elementos
+	// arrays medianos en host, numero_manzanas elementos
 	std::vector<std::vector<int> > tachos_por_manzana; //tachos_por_manzana[i]=vector de tachos de manzana i 
 
 	// numero de tachos elementos
 	std::vector<int> manzana_del_tacho;
 
+	
+	
 	// array de un elemento = device variable
 	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
 
@@ -303,11 +305,16 @@ struct bichos{
 		manzana.resize(MAXIMONUMEROBICHOS);
 
 		N_mobil.resize(1);
+		
+		//Porque /5.0 ????
+		//tachos_por_manzana.resize(int(N_/5.0)+1);
 
-		tachos_por_manzana.resize(int(N_/5.0)+1);
+		//no seria un vector de nmanzanas elementos, cada elemento a su vez es un vector de ntachos?
+		tachos_por_manzana.resize(NUMEROMANZANAS); 
 
 		manzana_del_tacho.resize(MAXIMONUMEROBICHOS);
-
+		
+		
 
 		// nacidos en cada tacho, inicialmente 0
 		nacidos.resize(NUMEROTACHOS);
@@ -339,11 +346,14 @@ struct bichos{
 			pupacion[i] = TPUPAD-2+(ran2(&semilla)*5);//dia de pupacion (entre los 15 y 19 dias)
 			TdV[i] = ran2(&semilla)*6+27 ;	//tiempo de vida de 27 a 32
 						
-			tachos_por_manzana[manzana[i]].push_back(tacho[i]); //me cuenta cuantos tachos tengo en la manzana para despues sortear
 			
 			//asigno los tachos a las manzanas al azar
 			manzana_del_tacho[tacho[i]]=int(ran2(&semilla)*NUMEROMANZANAS); //manzana en la que está el tacho m la asigno al azar 
-			manzana[i]=manzana_del_tacho[tacho[i]]; //manzana en la que está el bicho i
+			manzana[i]=manzana_del_tacho[tacho[i]]; //manzana en la que está el tacho i
+			
+			
+			tachos_por_manzana[manzana[i]].push_back(tacho[i]); //me cuenta cuantos tachos tengo en la manzana para despues sortear
+			
 
 			std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
 			std::cout << "pupacion" << pupacion[i]<< std::endl;
@@ -376,6 +386,26 @@ struct bichos{
 		return nuevo_tacho;
 	}
 	
+	// devuelve numero de manzana sorteada entre las cuatro manzanas vecinas de la manzana m
+		int sorteo_manzana_vecina(int m){
+		// numero de las manzanas vecinas de una manzana
+		std::vector<int> manzanas_vecinas(5);
+				
+		int x=m%LADO;
+		int y=int(m/LADO);
+		manzanas_vecinas[0]=(x-1+LADO)%LADO+LADO*y; //izqu
+		manzanas_vecinas[1]=(x+1+LADO)%LADO+LADO*y; //derecha
+		manzanas_vecinas[2]=LADO*((y-1+LADO)%LADO)+x; //abajo
+		manzanas_vecinas[3]=LADO*((y+1+LADO)%LADO)+x; //arriba
+		manzanas_vecinas[4]=m; //centro
+		
+		int nvecinos=5;
+		int r=int((rand()*1.0/RAND_MAX)*nvecinos);		
+		int manzana_sorteada=manzanas_vecinas[r];
+		return manzana_sorteada;
+	}
+
+
 	void mortalidades(int dia){
 
 	int N=N_mobil[0];
@@ -456,7 +486,8 @@ struct bichos{
 					nuevos=SAT-antiguos;	
 					
 				/*NUEVO Para transferir de tacho*/				
-					int manzanadeltacho = manzana_del_tacho[m];
+					//int manzanadeltacho = manzana_del_tacho[m]; //pone en la misma manzana
+					int manzanadeltacho = sorteo_manzana_vecina(m); //pone en la misma manzana o en una vecina
 					int cuantos=(tachos_por_manzana[manzanadeltacho]).size();
 
 					//std::cout << "la manzana del tacho saturado es " << manzanadeltacho;
