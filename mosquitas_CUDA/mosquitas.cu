@@ -684,9 +684,9 @@ int main(){
 	}
     double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
     printf("Tiempo Total en GPU: %lf minutos\n",t);
-	printf("Tiempo en descacharrar: %lf minutos\n",treprod);
+	printf("Tiempo en descacharrar: %lf minutos\n",tdescacha);
 	printf("Tiempo en reproducir: %lf minutos\n",treprod);
-	printf("Tiempo en recalcular: %lf minutos\n",treprod);	
+	printf("Tiempo en recalcular: %lf minutos\n",trecalc);	
 
 //cierro archivos
 outfile.close();
