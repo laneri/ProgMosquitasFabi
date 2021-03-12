@@ -3,11 +3,12 @@ Macros utiles para CPU y GPU
 Relaciones a tener en cuenta para modificar parรกmetros
 - NUMEROTACHOS=Ninicial
 */
-#define NINICIAL 		    7		//número inicial de mosquitos para codigo GPU	
-#define NUMEROTACHOS		7		//máximo número de tachos 
+#define NINICIAL 		    10		//número inicial de mosquitos para codigo GPU	
+#define NUMEROTACHOS		10		//máximo número de tachos 
 #define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
 #define MAXIMONUMEROBICHOS	80000	//número maximo de huevos
-
+#define LADO             10     //Lado de la grilla
+#define NUMEROMANZANAS		LADO*LADO		//número de manzanas que sea L*L=4*4
 
 #define ESTADOMUERTO		1
 #define ESTADOVIVO		    0

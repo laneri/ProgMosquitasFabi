@@ -269,15 +269,17 @@ struct bichos{
 	thrust::device_vector<int> pupacion; //dia de paso de pupa a adulta de cada mosquita
 	thrust::device_vector<int> manzana; //numero de manzana de cada mosquita
 
-	// arrays medianos em device, numero_tachos elementos
+	// arrays medianos en device, numero_tachos elementos
 	thrust::device_vector<int> nacidos; // tiene el num de tachos elementos, numero de nacidos por tacho
 
-	// arrays mediano en host, numero_manzanas elementos
+	// arrays medianos en host, numero_manzanas elementos
 	std::vector<std::vector<int> > tachos_por_manzana; //tachos_por_manzana[i]=vector de tachos de manzana i 
 
 	// numero de tachos elementos
 	std::vector<int> manzana_del_tacho;
 
+	
+	
 	// array de un elemento = device variable
 	thrust::device_vector<int> N_mobil; // Numero de bichos fluctuante (1 elemento)
 
@@ -303,11 +305,16 @@ struct bichos{
 		manzana.resize(MAXIMONUMEROBICHOS);
 
 		N_mobil.resize(1);
+		
+		//Porque /5.0 ????
+		//tachos_por_manzana.resize(int(N_/5.0)+1);
 
-		tachos_por_manzana.resize(int(N_/5.0)+1);
+		//no seria un vector de nmanzanas elementos, cada elemento a su vez es un vector de ntachos?
+		tachos_por_manzana.resize(NUMEROMANZANAS); 
 
 		manzana_del_tacho.resize(MAXIMONUMEROBICHOS);
-
+		
+		
 
 		// nacidos en cada tacho, inicialmente 0
 		nacidos.resize(NUMEROTACHOS);
@@ -338,28 +345,33 @@ struct bichos{
 			edad[i] = ran2(&semilla)*7+19; 	//edad: son todas adultas al principio 
 			pupacion[i] = TPUPAD-2+(ran2(&semilla)*5);//dia de pupacion (entre los 15 y 19 dias)
 			TdV[i] = ran2(&semilla)*6+27 ;	//tiempo de vida de 27 a 32
-			manzana[i] = (int)(i/5);         //manzana en la que se encuentra
+						
 			
-			tachos_por_manzana[manzana[i]].push_back(tacho[i]);
-			manzana_del_tacho[tacho[i]]=manzana[i];
+			//asigno los tachos a las manzanas al azar
+			manzana_del_tacho[tacho[i]]=int(ran2(&semilla)*NUMEROMANZANAS); //manzana en la que está el tacho m la asigno al azar 
+			manzana[i]=manzana_del_tacho[tacho[i]]; //manzana en la que está el tacho i
+			
+			
+			tachos_por_manzana[manzana[i]].push_back(tacho[i]); //me cuenta cuantos tachos tengo en la manzana para despues sortear
+			
 
-			std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
-			std::cout << "pupacion" << pupacion[i]<< std::endl;
+			//std::cout << estado[i] << "\t" << tacho[i] << "\t" << edad[i] << "\t" << TdV[i] << "\t" << pupacion[i] << "\t" << manzana[i] << "\n";
+			//std::cout << "pupacion" << pupacion[i]<< std::endl;
 		}
 
 		// una verificacion del llenado de tachos_por_manzana
 		int nmanzanas=tachos_por_manzana.size();
 		for(int i=0;i<nmanzanas;i++){
-			std::cout << "\n\n manzana " << i << "\n tachos: ";
+			//std::cout << "\n\n manzana " << i << "\n tachos: ";
 			int ntachos=tachos_por_manzana[i].size();
 			for(int j=0;j<ntachos;j++){
-				std::cout << (tachos_por_manzana[i])[j] << ", ";
+				//std::cout << (tachos_por_manzana[i])[j] << ", ";
 			}	
-			std::cout << std::endl;
+			//std::cout << std::endl;
 		}
-		std::cout << "manzana del tacho 3 " << manzana_del_tacho[3] << std::endl;
-		std::cout << "manzana del tacho 1 " << manzana_del_tacho[1] << std::endl;
-		std::cout << std::endl;
+		//std::cout << "manzana del tacho 3 " << manzana_del_tacho[3] << std::endl;
+		//std::cout << "manzana del tacho 1 " << manzana_del_tacho[1] << std::endl;
+		//std::cout << std::endl;
 
 
 		std::cout << "inicializacion lista" << std::endl;
@@ -374,6 +386,34 @@ struct bichos{
 		return nuevo_tacho;
 	}
 	
+	// devuelve numero de manzana sorteada entre las cuatro manzanas vecinas de la manzana m
+		int sorteo_manzana_vecina(int manz){
+		// numero de las manzanas vecinas de una manzana
+		std::vector<int> manzanas_vecinas(5);
+				
+		int x=manz%LADO;
+		int y=int(manz/LADO);
+		manzanas_vecinas[0]=(x-1+LADO)%LADO+LADO*y; //izqu
+		manzanas_vecinas[1]=(x+1+LADO)%LADO+LADO*y; //derecha
+		manzanas_vecinas[2]=LADO*((y-1+LADO)%LADO)+x; //abajo
+		manzanas_vecinas[3]=LADO*((y+1+LADO)%LADO)+x; //arriba
+		manzanas_vecinas[4]=manz; //centro
+		
+		int nvecinos=6; //cuento los vecinos y el centro
+		int r=int((rand()*1.0/RAND_MAX)*nvecinos); //numero aleatorio entre 0 y 6
+		//si sale 5 o 6 elijo el centro (es una forma trucha de darle mas probabilidad al centro)
+		int manzana_sorteada;
+		if(r>3)
+			{
+			manzana_sorteada=manz;
+			}
+			else{		
+			manzana_sorteada=manzanas_vecinas[r];
+		}
+		return manzana_sorteada;
+	}
+
+
 	void mortalidades(int dia){
 
 	int N=N_mobil[0];
@@ -398,7 +438,7 @@ struct bichos{
 		if(dia%7 == 0 && dia > 120 && dia < 320){
   			for(int itach=0;itach < descach;itach++){
     			int ntach=ran2(&semilla)*NUMEROTACHOS;
-    			std::cout << ntach << "\n";
+    			//std::cout << ntach << "\n";
   				descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,ntach);
   				cudaDeviceSynchronize();
 			}    	
@@ -417,7 +457,7 @@ struct bichos{
 		}else{
 
 		//nacimientos
-		std::cout << "antes kernel reproducir " << std::endl;
+		//std::cout << "antes kernel reproducir " << std::endl;
 		//reinicializo en cero los nacidos en el paso anterior que ahora ya no son mas nacidos porque crecieron 
 		thrust::fill(nacidos.begin(),nacidos.end(),0);
 
@@ -425,7 +465,7 @@ struct bichos{
 		kernel_reproducir<<<(indice+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_TdV,raw_pupacion,raw_manzana,raw_N_mobil,dia,tovip,raw_nacidos);
 		cudaDeviceSynchronize();
 
-		std::cout << "despues kernel reproducir " << std::endl; 
+		//std::cout << "despues kernel reproducir " << std::endl; 
 			// agrego todos los nacidos al final del array original, tacho a tacho
 			int index=indice;
 			for(int m=0;m<NUMEROTACHOS;m++){
@@ -438,7 +478,7 @@ struct bichos{
 					thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
 					acuaticoeneltacho(m,TPUPAD)
 				);
-
+				//std::cout << "ACUATICOS " << antiguos <<" TACHO "<< m <<std::endl;
 				/* //NUEVO: cuando el TPUPAD es variable, indice=nro de bichos hasta el momento
 				int antiguosANA=thrust::count_if(
 					thrust::make_zip_iterator(thrust::make_tuple(edad.begin(), pupacion.begin(),tacho.begin())),
@@ -449,12 +489,17 @@ struct bichos{
 				//std::cout << "Acuaticos en Tacho " << antiguos << " TACHO "<< m <<std::endl;
 				//los nuevos vienen del kernel reproducir  
 				int nuevos=nacidos[m];
-
+				//Ahora bien, si con los nuevos supero el maximo de huevos por tacho (SAT)
 				if(nuevos+antiguos>SAT){
-					nuevos=SAT-antiguos;	
+					nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
 					
-				/*NUEVO Para transferir de tacho*/				
-					int manzanadeltacho = manzana_del_tacho[m];
+				/*NUEVO Para transferir de tacho*/
+				/*Muevo LOS ADULTOS a otro tacho de la misma manzana*/				
+					//int manzanadeltacho = manzana_del_tacho[m]; //pone en la misma manzana
+				/*Muevo LOS ADULTOS a otro tacho de la misma manzana o de una manzana vecina*/
+					int estamanzana = manzana_del_tacho[m];
+					int manzanadeltacho = sorteo_manzana_vecina(estamanzana); //pone en la misma manzana o en una vecina
+					//cuantos tachos tengo en la manzana? 
 					int cuantos=(tachos_por_manzana[manzanadeltacho]).size();
 
 					//std::cout << "la manzana del tacho saturado es " << manzanadeltacho;
@@ -475,10 +520,14 @@ struct bichos{
 						tacho.begin(),
 						transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
 					);
-				}
-				/*HASTA ACA TRANSFIERE DE TACHO*/
 
-				std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m <<std::endl; 
+					//Una vez que se llenaron los tachos de la manzana, pone en las manzanas vecinas.
+
+
+				}
+				/*HASTA ACA TRANSFIERE DE TACHO DENTRO DE UNA MISMA MANZANA*/
+
+				//std::cout << "NUEVOS NACIDOS " << nuevos <<" TACHO "<< m << " MANZANA "<< manzana_del_tacho[m] << std::endl; 
 
 				thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	        //NUEVO	
 				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,0);		                //NUEVO	
@@ -591,22 +640,35 @@ int main(){
 
     bichos mosquitas(NINICIAL);
     //cambié el orden de las funciones y las ordené de acuerdo  al código C++ y Fortran, el orden que tenia anteriormente afectaba el resultado
-    
+    double treprod=0;
+	double trecalc=0;
+	double tdescacha=0;
+
 	for(int dia = 1; dia <= NDIAS; dia++){
 	std::cout << "DIA" << dia << std::endl;
     int tovip=tiempo_entre_oviposiciones(dia);
 	
-	std::cout << "matar" << std::endl;
+	//std::cout << "matar" << std::endl;
 	mosquitas.mortalidades(dia);//fusione muerte x vejez con mortalidades varias en un solo kernel
-
-	std::cout << "descacharrar" << std::endl;
+	
+	gpu_timer Reloj_descacharrar;
+	Reloj_descacharrar.tic();
+	//std::cout << "descacharrar" << std::endl;
 	mosquitas.descacharrado(dia,descach); 
+	tdescacha= tdescacha+Reloj_descacharrar.tac()/60000; //de milisegundos -> minutos
 
-	std::cout << "reproducir" << std::endl;
+	gpu_timer Reloj_reproducir;
+	Reloj_reproducir.tic();
+	//std::cout << "reproducir" << std::endl;
 	mosquitas.reproducir(dia,tovip);
+	treprod= treprod+Reloj_reproducir.tac()/60000; //de milisegundos -> minutos
+   
 
-	std::cout << "recalcular indice de mosquitas vivas" << std::endl;
+	gpu_timer Reloj_recalcular;
+	Reloj_recalcular.tic();
+	//std::cout << "recalcular indice de mosquitas vivas" << std::endl;
 	mosquitas.recalcularN(); 
+	trecalc= trecalc+Reloj_recalcular.tac()/60000; //de milisegundos -> minutos
 
 	int vivas=mosquitas.vivos(dia);
 	int adultos=mosquitas.adultos(dia);
@@ -616,12 +678,16 @@ int main(){
 	outfile1 << dia << "\t" << adultos << std::endl;
 	outfile2 << dia << "\t" << acuaticos << std::endl;
 
-	std::cout << "envejecer poblacion" << std::endl;
+	//std::cout << "envejecer poblacion" << std::endl;
 	mosquitas.envejecer(dia);
 	
 	}
     double t=Reloj_GPU.tac()/60000; //de milisegundos -> minutos
-    printf("Tiempo en GPU: %lf minutos\n",t);
+    printf("Tiempo Total en GPU: %lf minutos\n",t);
+	printf("Tiempo en descacharrar: %lf minutos\n",treprod);
+	printf("Tiempo en reproducir: %lf minutos\n",treprod);
+	printf("Tiempo en recalcular: %lf minutos\n",treprod);	
+
 //cierro archivos
 outfile.close();
 outfile1.close();
