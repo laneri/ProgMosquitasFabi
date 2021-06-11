@@ -514,8 +514,8 @@ struct bichos{
 		int nmanzanas=tachos_por_manzana.size();                           //nro de manzanas
 		
     	//int azar=1 + ran2(semilla)*14;                                    //nro al azar entre [1,14]
-		//if(dia%azar == 0 && dia > 120 && dia < 320){                      //para un vaciado de tachos entre 1 y 13 días
-  		if(dia%7 == 0 && dia > 120 && dia < 320){                         //para un vaciado de tachos cada 7 días
+		//if(dia%azar == 0 && dia > 120 && dia < 320){          //para un vaciado de tachos entre 1 y 13 días
+  		if(dia%7 == 0 && dia > 120 && dia < 320){               //para un vaciado de tachos cada 7 días
 
    		    for(int i=0;i < nmanzanas;i++){
    		    int NroDescach=round(NroTachos[i]*E[i]);            //nro de tachos que se van a vaciar por manzana
@@ -528,12 +528,12 @@ struct bichos{
 		    std::cout << "indice sorteado |" << " tacho que se vacia "<<"\t|disponibilidad"<< "\n";} 
 
    			    for(int itach=0;itach < NroDescach;itach++){
-   			        int n=ran2(semilla)*ntachos;            //NUEVO indice del tacho que se va a eliminar al azar
+   			        int n=ran2(semilla)*ntachos;             //(NUEVO) indice del tacho que se va a eliminar al azar
    			        //int n=itach;                           // se descacharran los primeros tachos
 
    		 	    	int ntach=(tachos_por_manzana[i])[n];   //tacho que se elimina 
-   		 	    	int nTau= 10;// + ran2(semilla)*30;     //NUEVO delay para la disponibilidad del tacho
-   		 	    	(disponibilidad_de_tachos_por_manzana[i])[n] =nTau; //NUEVO el tacho que se elimina tiene un delay de nTau días para volver a estar disponible
+   		 	    	int nTau= 10;// + ran2(semilla)*30;     //(NUEVO) delay para la disponibilidad del tacho
+   		 	    	(disponibilidad_de_tachos_por_manzana[i])[n] =nTau; //(NUEVO) el tacho que se elimina tiene un delay de nTau días para volver a estar disponible
                     //chequeo
                     if(dia==140){std::cout << "\t" << n << "\t|\t" << ntach << " \t\t|\t" << (disponibilidad_de_tachos_por_manzana[i])[n]<<"\n";}
                 //las mosquitas que viven en el tacho=ntach cambian su estado de VIVAS -> MUERTAS    
@@ -544,7 +544,7 @@ struct bichos{
    		    }//cierro for para las manzanas
    		}//cierro if
    		
-   		//NUEVO Defino un array Tdisp(NUMEROTACHOS) para almacenar el estado de cada tacho: disponible=0, no disponible=nTau días 
+   		//(NUEVO) Defino un array Tdisp(NUMEROTACHOS) en el host para almacenar el estado de cada tacho: disponible=0, no disponible=nTau días 
    		int cont=0;
    		
 		for(int i=0;i<nmanzanas;i++){
@@ -594,10 +594,10 @@ struct bichos{
 				//los nuevos vienen del kernel reproducir  
 				int nuevos=nacidos[m];
 
-                //NUEVO copio el array donde tengo la disponibilidad de los tachos en el host después del descacharrado y lo llevo al device
+                //(NUEVO) copio el array donde almaceno la disponibilidad de los tachos después del descacharrado que está en el host y lo llevo al device
                 thrust::device_vector<int> d_T = Tdispo;
 
-                int dispo=d_T[m]; // NUEVO disponibilidad por tacho m,dispo= 0 para disponible y dispo=nTau para no disponible
+                int dispo=d_T[m]; //(NUEVO) disponibilidad por tacho m,dispo= 0 para disponible y dispo=nTau para no disponible
  
                 //chequeo para un día determinado
 			     //   if(dia==140){
@@ -645,7 +645,7 @@ struct bichos{
 				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		        //nacen con edad(dias)      
 				thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	        //nacen en el tacho m
 
-                thrust::fill(Tau.begin()+index,Tau.begin()+index+nuevos,disponibilidad_del_tacho[m]); //NUEVO nacen en un tacho disponible
+                thrust::fill(Tau.begin()+index,Tau.begin()+index+nuevos,disponibilidad_del_tacho[m]); //(NUEVO) nacen en un tacho disponible
                 
 				// index en counting iteraror necesario para distintos randoms en cada tacho
 				thrust::transform(
@@ -738,7 +738,7 @@ struct bichos{
         cudaDeviceSynchronize();
 	}; 
 	
-	//NUEVO disminuir el delay=nTau en 1 día para que el tacho eliminado vuelva a estar disponible
+	//(NUEVO) disminuir el delay=nTau en 1 día para que el tacho eliminado vuelva a estar disponible
    	void delay(int dia){
 	int N=N_mobil[0];
 
@@ -832,7 +832,7 @@ int main(){
 
 	    //std::cout << "envejecer poblacion" << std::endl;
 	    mosquitas.envejecer(dia);
-	    mosquitas.delay(dia); //NUEVO
+	    mosquitas.delay(dia); //(NUEVO) disminuyo en un dia el delay=nTau de los tachos que fueron vaciados
 	    Poblacion[dia]= vivas;//guardo en un vector el nro de mosquitas para una determinada semilla
 	    }//cierro loop para dias
 
