@@ -3,11 +3,15 @@ Macros utiles para CPU y GPU
 Relaciones a tener en cuenta para modificar parรกmetros
 - NUMEROTACHOS=NINICIAL
 */
+
 #define NINICIAL 		    20	        //número inicial de mosquitos N=125 para 5 mosquitas x manzana.
 #define NUMEROTACHOS		20          //máximo número de tachos Ntachos=Nmosquitas
 #define MAXIMONUMEROBICHOS	80000000    //número maximo de huevos
 #define LADO           	    2           //Lado de la grilla L=5
 #define NUMEROMANZANAS		LADO*LADO   //número de manzanas que sea L*L=5*5=25
+
+//#define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
+
 
 #define ESTADOMUERTO		1
 #define ESTADOVIVO	    	0
