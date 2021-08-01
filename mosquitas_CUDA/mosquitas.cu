@@ -63,11 +63,14 @@ typedef r123::Philox2x32 RNG; // particular counter-based RNG
 #include <cmath>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <thrust/scan.h>
+
 #include "gpu_timer.h"
 #include "parametros.h"
 
 #include<stdio.h>
 
+using namespace thrust::placeholders;
 
 int tiempo_entre_oviposiciones(int dia){
 	int t;
@@ -149,19 +152,20 @@ __global__ void matar_kernel(int *estado, int *edad, int *tacho,int *pupacion, i
 	}
 };
 
-__global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pupacion,int *N_mobil,int dia,int ntach)
+__global__ void descacharrado_kernel(int *estado, int *edad, int *tacho, int *pupacion,int *N_mobil,int dia, bool *mask)
 {
+	
     	int N=N_mobil[0];
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
 
 	    if(id<N){// esta condicion es igual a decir que la mosquita estรก viva
-	        if (edad[id] < pupacion[id] && tacho[id] == ntach){
+	        if (edad[id] < pupacion[id] && mask[tacho[id]]==1){ //NUEVOKARI Verificar
 	        estado[id]=ESTADOMUERTO; // se mata la mosquita
-	        }
+			}
     	}
 };
-
 //elimine el estado[id]=ESTADOVIVO, ya que al final sólo quedan las mosquitas vivas
+
 
 __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mobil,int dia)
 {
@@ -176,16 +180,39 @@ __global__ void envejecer_kernel(int *estado, int *edad,int *pupacion,int *N_mob
     	}
 };
 
-
-__global__ void delay_kernel(int *N_mobil,int *Tau,int dia)
+__global__ void delay_kernel(int *devTauTacho,int dia)
 {
-    	int N=N_mobil[0];
+    
 	    int id = blockIdx.x*blockDim.x + threadIdx.x;
 
-        if(id<N){
-            if(Tau[id] > 0)Tau[id]=Tau[id] - 1; //si Tau[id]=nTau=delay, entonces Tau[id]=nTau -1
+        if(id<NUMEROTACHOS){
+            if(devTauTacho[id] > 0)devTauTacho[id]=devTauTacho[id] - 1; 
     	}
 };
+
+//el siguiente kernel me crea una mascara de los tachos para descacharrar con 1=descacharro
+__global__ 
+void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask)
+{
+    int manzana=threadIdx.x+blockIdx.x*blockDim.x;
+
+    if(manzana<NUMEROMANZANAS){
+        int tachoi=ind[manzana];
+        int tachof=(manzana+1<NUMEROMANZANAS)?ind[manzana+1]:NUMEROTACHOS;
+        int faltandescacharrar=tpd[manzana];
+        for(int tacho=tachoi;tacho<tachof && faltandescacharrar>0;tacho++){
+            if(disp[tacho]==0) //el tacho esta disponible
+			{
+                mask[tacho]=1;
+                faltandescacharrar--;
+				disp[tacho]=nTau;
+            }else{mask[tacho]=0;}
+        }
+    }
+}
+
+
+
 
 // functorcito para transferencia de tacho
 
@@ -294,21 +321,6 @@ struct aereaeneltacho
 	}
 };
 
-
-struct acuaticoeneltachoANA{
-	int m;
-    int t;
-	aereaeneltacho(int m_, int t_):m(m_),t(t_){};   
-	__device__ bool operator()(thrust::tuple<int,int> tupla)
-	{
-        int tach=thrust::get<0>(tupla);
-        int edad=thrust::get<1>(tupla);
-		return (tach==m && edad>t);
-	}
-};
-
-
-
 //functorcito para contar adultos en la población
 struct poblacion_1{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
@@ -328,18 +340,6 @@ struct poblacion_2{
 		return (edad < pupacion);
 	}
 };
-/*
-__global__ void tachosenmanzana(int manzananum)
-{
-    	int N=N_mobil[0];
-	    int id = blockIdx.x*blockDim.x + threadIdx.x;
-
-	    if(id<N){// esta condicion es igual a decir que la mosquita está viva
-	    if (manzana[id] == manzananum)vectachmanzana=tacho[id];
-    	}
-		return (lista tachos en esa manzana);
-};
-*/
 
 struct bichos{
 
@@ -352,24 +352,23 @@ struct bichos{
 	thrust::device_vector<int> pupacion; //dia de paso de pupa a adulta de cada mosquita
 	thrust::device_vector<int> manzana; //nro. de manzana de cada mosquita
 
-	thrust::device_vector<int> Tau;     //array para almacenar la disponibilidad de los tachos. valores 0 a un tiempo dado.  
 
 
 	// arrays medianos en device, numero_tachos elementos
 	thrust::device_vector<int> nacidos; // tiene el num de tachos elementos, numero de nacidos por tacho
+	thrust::device_vector<int> devTauTacho; //NUEVOKARI tiene la dispo del tacho 0 disponible, no cero no disponible
+	thrust::device_vector<int> devTachosManzana; //NUEVOKARI vector en device con numero manzanas elementos: numero de tachos por manzana
+	thrust::device_vector<float> devEpropManzana; //NUEVOKARI vector en device con numero manzanas elementos: efectividad propaganda por manzana
+	thrust::device_vector<int> devDescachManzana;
 
-
-	thrust::host_vector<int> Tdispo; // NUEVO para almacenar la disponibilidad del cada tacho
-	thrust::device_vector<int> d_T; //  NUEVO d_T=Tdispo
-
+	thrust::device_vector<int> devIndicesDescach; // NUEVOKARIindice primer tacho de cada manzana
+    thrust::device_vector<bool> mask; //
 
 	// arrays medianos en host, numero_manzanas elementos
 	std::vector<std::vector<int> > tachos_por_manzana; //tachos_por_manzana[i]=vector de tachos de manzana i 
-	std::vector<std::vector<int> > disponibilidad_de_tachos_por_manzana; //NUEVO array para identificar la disponibilidad tachos por manzana 
 
 	// numero de tachos elementos
 	std::vector<int> manzana_del_tacho;
-	std::vector<int> disponibilidad_del_tacho;         //NUEVO
 	
 
 	//array para almacenar nro de tachos por manzana
@@ -388,8 +387,10 @@ struct bichos{
 	int *raw_manzana;
 	int *raw_nacidos;
 
-	int *raw_Tau;
-	
+//	int *raw_Tau;
+	int *raw_devTauTacho;
+	bool *raw_mask;
+
 	//constructor	
 	bichos(int N_,long *semilla){
 
@@ -401,24 +402,32 @@ struct bichos{
 		TdV.resize(MAXIMONUMEROBICHOS);
 		manzana.resize(MAXIMONUMEROBICHOS);
 
-		Tau.resize(MAXIMONUMEROBICHOS);
 
 		N_mobil.resize(1);
 		
-		tachos_por_manzana.resize(NUMEROMANZANAS); 
-        disponibilidad_de_tachos_por_manzana.resize(NUMEROMANZANAS); 
+		tachos_por_manzana.resize(NUMEROMANZANAS);
+		devTachosManzana.resize(NUMEROMANZANAS);
+		devEpropManzana.resize(NUMEROMANZANAS); 
+		devDescachManzana.resize(NUMEROMANZANAS);
+		devIndicesDescach.resize(NUMEROMANZANAS);
 
 		manzana_del_tacho.resize(MAXIMONUMEROBICHOS);
-		disponibilidad_del_tacho.resize(MAXIMONUMEROBICHOS);
 
 		NroTachos.resize(NUMEROMANZANAS);
 
-        Tdispo.resize(NUMEROTACHOS);//NUEVO
-        d_T.resize(NUMEROTACHOS);//NUEVO
+		devTauTacho.resize(NUMEROTACHOS);//NUEVOKARI vector en device de dim numero de tachos cada elemento indica la disponibiilidad del tacho
+		mask.resize(NUMEROTACHOS);//NUEVOKARI vector que crea un vector "mascara" con el numero de tacho que hay que descacharrar 1=descacharra
 
 		// nacidos en cada tacho, inicialmente 0
 		nacidos.resize(NUMEROTACHOS);
 		thrust::fill(nacidos.begin(),nacidos.end(),0);
+		thrust::fill(devTauTacho.begin(),devTauTacho.end(),0);   //NUEVOKARI inicializo en cero
+		thrust::fill(devEpropManzana.begin(),devEpropManzana.end(),PROP); //NUEVOKARI vector efectividad de propaganda que puede ser diferente para cada menzana
+		thrust::fill(devTachosManzana.begin(),devTachosManzana.end(),0);
+		thrust::fill(devDescachManzana.begin(),devDescachManzana.end(),0);
+		thrust::fill(devIndicesDescach.begin(),devIndicesDescach.end(),0);
+		thrust::fill(mask.begin(),mask.end(),0);
+		
 
 		thrust::fill(estado.begin(),estado.end(),0);
 		thrust::fill(edad.begin(),edad.end(),0);
@@ -427,27 +436,21 @@ struct bichos{
 		thrust::fill(TdV.begin(),TdV.end(),0);
 		thrust::fill(manzana.begin(),manzana.end(),0);
 
-
-		thrust::fill(Tau.begin(),Tau.end(),0);
-		
-		// inicializacion raw pointers para pasarlos al kernel
-		
-		// inicializacion raw pointers
-
+		// inicializacion raw pointers para pasarlos al kernel		
 		raw_edad=thrust::raw_pointer_cast(edad.data());
 		raw_tacho=thrust::raw_pointer_cast(tacho.data());
 		raw_estado=thrust::raw_pointer_cast(estado.data());
 		raw_TdV=thrust::raw_pointer_cast(TdV.data());
 		raw_manzana=thrust::raw_pointer_cast(manzana.data());
-
-    raw_Tau=thrust::raw_pointer_cast(Tau.data());
-
+		raw_devTauTacho=thrust::raw_pointer_cast(devTauTacho.data());
+		raw_mask=thrust::raw_pointer_cast(mask.data());
+	
 		raw_N_mobil=thrust::raw_pointer_cast(N_mobil.data());
 		raw_pupacion=thrust::raw_pointer_cast(pupacion.data());
 		raw_nacidos=thrust::raw_pointer_cast(nacidos.data());
 
-
-        //para considerar una distribucion de Poisson de los tachos
+	
+		//para considerar una distribucion de Poisson de los tachos
         /*std::default_random_engine generator;
         std::poisson_distribution<int> distribution(65);
 
@@ -465,10 +468,10 @@ struct bichos{
 //*************************************************************************************************************
 //                       condiciones iniciales para N_=NINICIAL ingresado en el archivo parametros.h
 //*************************************************************************************************************
-		std::cout << "******************************************************************************************" << "\n";
-		std::cout << "************************  condiciones iniciales ************************************" << "\n";
-		std::cout << "*******************************************************************************************" << "\n";
-		std::cout << "indice i" <<"\ttachos[i] "<< "\tdispo.[i]"<<  "\tmanzana[i]  " << "\n";
+		// std::cout << "******************************************************************************************" << "\n";
+		// std::cout << "************************  condiciones iniciales ************************************" << "\n";
+		// std::cout << "*******************************************************************************************" << "\n";
+		// std::cout << "indice i" <<"\ttachos[i] "<< "\tdispo.[i]"<<  "\tmanzana[i]  " << "\n";
 
 		for(int i=0;i < N_;i++){
 		    
@@ -478,44 +481,19 @@ struct bichos{
     		//manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS); //le asigno al tacho una manzana al azar
 		    manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
 		    tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
-    		
-		    disponibilidad_del_tacho[tacho[i]]=0;                           //NUEVO 0 para disponible, distinto de 0 para no disponible
-		    Tau[i] = disponibilidad_del_tacho[tacho[i]];                    //NUEVO disponibilidad del tacho i
-    		disponibilidad_de_tachos_por_manzana[manzana[i]].push_back(Tau[i]); //NUEVO para identificar la disponibilidad de los tachos en la manzana
+    		devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
+			
+			devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
 
-		    //int tachosxmanzana=tachos_por_manzana[manzana[i]].size();      //nro de tachos x manzana
+			//int tachosxmanzana=tachos_por_manzana[manzana[i]].size();      //nro de tachos x manzana
 			    //if(tachosxmanzana <=9){                                    //pongo hasta 9 tachos por manzana
 			    estado[i] = ESTADOVIVO; 	      		                    //todas vivas inicialmente
 			    edad[i] = ran2(semilla)*7+19; 	                            //todas adultas al principio 
 			    pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                   //dia de pupacion (entre los 15 y 19 dias)
 			    TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
-	    		std::cout << i << "\t\t" <<tacho[i] << "\t\t" << disponibilidad_del_tacho[tacho[i]] << "\t\t" << manzana[i] << "\n";
-
-			    //}
-		}
-
-		std::cout << "*****************************************************************************************" << "\n";
-		std::cout << "verificacion del llenado de tachos_por_manzana y de la disponibilidad_de_tachos por_manzana"<< "\n";
-		std::cout << "*****************************************************************************************" << "\n";
-
-		int nmanzanas=tachos_por_manzana.size();
-
-		for(int i=0;i<nmanzanas;i++){
-			std::cout << "\n\n manzana " << i << "\ntachos " << "disponibilidad " << "\n";
-			int ntachos=tachos_por_manzana[i].size();   //nro de tachos por manzana
-			int contTach=0;                             //contador para el nro de tachos por manzana
-
-			for(int j=0;j<ntachos;j++){
-				std::cout << (tachos_por_manzana[i])[j] << "\t " << (disponibilidad_de_tachos_por_manzana[i])[j] << "\n";
-				contTach++;
-				NroTachos[i]=contTach;  
-			}
-			std::cout << "\nNro de tachos en la manzana\t" << contTach << "\n";
-			std::cout << std::endl;
-			std::cout <<"----------------------------------------------------------------------------------------"<< "\n";			}
-	
-		std::cout << "inicializacion lista" << std::endl;
+		//}
 		N_mobil[0]=N_;
+		}
 	};	
 
 	// devuelve un numero de tacho random de la manzana m
@@ -562,63 +540,68 @@ struct bichos{
 		cudaDeviceSynchronize();
 	};
 
-	void descacharrado(int dia,float *E,long *semilla){
+	void descacharrado(int dia,long *semilla){
 	int N=N_mobil[0];
-	
-		int nmanzanas=tachos_por_manzana.size();                           //nro de manzanas
+	    	
+				//Solo el primer dia calculo cuantos tachos por manzana voy a descacharrar luego esto queda fijo
+				if(dia==1)
+				{
+				thrust::transform(
+						devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
+						devDescachManzana.begin(),_1*_2
+					);
+				//tendre el numero de tachos a descacharrar por manzana en devDescachManzana
+				int descachTot=0;
+				descachTot=thrust::reduce(devDescachManzana.begin(),devDescachManzana.end(),descachTot);
+				//el numero de tachos total a descacharrar sera la suma sobre ese vector, lo que llamaba descach
+    			
+				int ntachos=thrust::reduce(devTachosManzana.begin(),devTachosManzana.end());
+			    std::cout << "nro total de tachos = " << ntachos << std::endl; 
+				//calculo los indices de los tachos a descacharrar (exclusive_scan va acumulando el num de tachos por manzana)
+    			thrust::exclusive_scan(devTachosManzana.begin(),devTachosManzana.end(),devIndicesDescach.begin());
+    			std::cout << "ntachos,begin,descacharrar" << std::endl; 
+    			/* for(int i=0;i<NUMEROMANZANAS;i++){
+        			std::cout << devTachosManzana[i] << "," <<  devIndicesDescach[i] << "," << devDescachManzana[i] << std::endl;
+    			 }*/
+				}		 
+	//El descacharrado puede ser fijo o aleatorio
+	int DiasDesc;
+	if(DESCACHFIJO)
+	{
+		DiasDesc=TIEMPODESCACH;
+	}else
+	{
+		DiasDesc=1 + ran2(semilla)*TIEMPODESCACH;      //nro al azar entre [1,14]
+	}
+
+		if(dia%DiasDesc == 0 && dia > 120 && dia < 320){
+		// el siguiente kernel me saca una mascara con los indices de tachos a descacharrar (todavia no descacharra)
+		kernelUnaDim<<<(NUMEROMANZANAS+BLOCKS-1)/BLOCKS,BLOCKS>>>(
+        thrust::raw_pointer_cast(devDescachManzana.data()),
+        thrust::raw_pointer_cast(devIndicesDescach.data()),
+		raw_devTauTacho,
+        raw_mask
+    	);
+
+	// // Verifico que tachos se van a descacharrar 
+	// int j=0;
+   	// thrust::host_vector<int> cn_h(devIndicesDescach);
+   	// for(int i=0;i<NUMEROTACHOS;i++){
+    //     if(cn_h[j]==i) 
+    //     {
+    //         std::cout << "|";
+    //         j++;
+    //     }
+    //     std::cout << mask[i];
+    // } 
+    // std::cout << std::endl;
+
+	//El siguiente kernel me descacharra los tachos que diga la mask
+	descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,raw_mask);
+  	cudaDeviceSynchronize();
 		
-    	//int azar=1 + ran2(semilla)*14;                                    //nro al azar entre [1,14]
-		//if(dia%azar == 0 && dia > 120 && dia < 320){          //para un vaciado de tachos entre 1 y 13 días
-  		if(dia%7 == 0 && dia > 120 && dia < 320){               //para un vaciado de tachos cada 7 días
+	}
 
-   		    for(int i=0;i < nmanzanas;i++){
-   		    int NroDescach=round(NroTachos[i]*E[i]);            //nro de tachos que se van a vaciar por manzana
-   		    int ntachos=tachos_por_manzana[i].size();           //nro de tachos en cada manzana i
-
-  		    //chequeo
-		    if(dia==140){
-		    std::cout << "\n ----- Descacharrado para el dia 140 -----" <<"\n";
-		    std::cout << "manzana: " << i << " numero de tachos en la mazanana: " << ntachos <<"\n";
-		    std::cout << "indice sorteado |" << " tacho que se vacia "<<"\t|disponibilidad"<< "\n";} 
-
-   			    for(int itach=0;itach < NroDescach;itach++){
-   			        int n=ran2(semilla)*ntachos;             //(NUEVO) indice del tacho que se va a eliminar al azar
-   			        //int n=itach;                           // se descacharran los primeros tachos
-
-   		 	    	int ntach=(tachos_por_manzana[i])[n];   //tacho que se elimina 
-   		 	    	int nTau= 10;// + ran2(semilla)*30;     //(NUEVO) delay para la disponibilidad del tacho
-   		 	    	(disponibilidad_de_tachos_por_manzana[i])[n] =nTau; //(NUEVO) el tacho que se elimina tiene un delay de nTau días para volver a estar disponible
-                    //chequeo
-                    if(dia==140){std::cout << "\t" << n << "\t|\t" << ntach << " \t\t|\t" << (disponibilidad_de_tachos_por_manzana[i])[n]<<"\n";}
-                //las mosquitas que viven en el tacho=ntach cambian su estado de VIVAS -> MUERTAS    
-//Antes
-//		if(dia%7 == 0 && dia > 120 && dia < 320){
-//  			for(int itach=0;itach < descach;itach++){
-//    			int ntach=ran2(&semilla)*NUMEROTACHOS;
-    			//std::cout << ntach << "\n";
-              
-  				descacharrado_kernel<<<(N+256-1)/256,256>>>(raw_estado, raw_edad, raw_tacho, raw_pupacion, raw_N_mobil,dia,ntach);
-  				cudaDeviceSynchronize();
-  				
-			    }//cierro for para eliminar los tachos
-   		    }//cierro for para las manzanas
-   		}//cierro if
-   		
-   		//(NUEVO) Defino un array Tdisp(NUMEROTACHOS) en el host para almacenar el estado de cada tacho: disponible=0, no disponible=nTau días 
-   		int cont=0;
-   		
-		for(int i=0;i<nmanzanas;i++){
-			int ntachos=tachos_por_manzana[i].size();
-            //chequeo
-			if(dia==140){std::cout << "manzana: "<< i << "\n";}
-			
-			for(int j=0;j<ntachos;j++){
-			    Tdispo[cont]=(disponibilidad_de_tachos_por_manzana[i])[j];
-			    //chequeo
-			        if(dia==140){std::cout << Tdispo[cont] << "\n";}
-			    cont++;
-			}//cierro for para tachos
-		}//cierro for para manzanas
    	};
 
     //nacimientos
@@ -658,9 +641,9 @@ struct bichos{
 				int nuevos=nacidos[m];
 
                 //(NUEVO) copio el array donde almaceno la disponibilidad de los tachos después del descacharrado que está en el host y lo llevo al device
-                thrust::device_vector<int> d_T = Tdispo;
+                //thrust::device_vector<int> d_T = Tdispo;
 
-                int dispo=d_T[m]; //(NUEVO) disponibilidad por tacho m,dispo= 0 para disponible y dispo=nTau para no disponible
+                //int dispo=d_T[m]; //(NUEVO) disponibilidad por tacho m,dispo= 0 para disponible y dispo=nTau para no disponible
  
                 //chequeo para un día determinado
 			     //   if(dia==140){
@@ -668,8 +651,8 @@ struct bichos{
 			     //   }
 			        
 				    //Ahora bien, si con los nuevos supero el maximo de huevos por tacho (SAT)y (NUEVO) el tacho está disponible
-				    if(nuevos+antiguos>SAT && dispo==0){
-				        
+				    //if(nuevos+antiguos>SAT && dispo==0){
+				    if(nuevos+antiguos>SAT && devTauTacho[m]==0){    
 				    nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
 					
 				    /*Para transferir de tacho*/
@@ -696,19 +679,21 @@ struct bichos{
 						transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
 					);
                     
-                    dispo=d_T[m]; //NUEVO disponibilidad del nuevo tacho m luego de hacer la transferencia
+                    //ComentoKARI //dispo=d_T[m]; //NUEVO disponibilidad del nuevo tacho m luego de hacer la transferencia
                     
 					//Una vez que se llenaron los tachos de la manzana, pone en las manzanas vecinas.
 				    }//cierro if para transferencia de tacho
 				    
 				/*HASTA ACÁ MAYOR PROBABILIDAD DE TRANSFERENCIA DE TACHO EN LA MISMA MANZANA Y MENOR PORB. DE TRANSFERENCIA DE MANZANA y TACHO */
-                if(dispo==0){ //NUEVO si el nuevo tacho está disponible, entonces que agregue al final de los arrays las nuevas mosquitas
+                //if(dispo==0){ //NUEVO si el nuevo tacho está disponible, entonces que agregue al final de los arrays las nuevas mosquitas
+				if(devTauTacho[m]==0){ //KARINUEVO m ahora es el tacho nuevo
 
 				thrust::fill(estado.begin()+index,estado.begin()+index+nuevos,ESTADOVIVO);	//nacen todas vivas       
 				thrust::fill(edad.begin()+index,edad.begin()+index+nuevos,1);		        //nacen con edad(dias)      
 				thrust::fill(tacho.begin()+index,tacho.begin()+index+nuevos,m); 	        //nacen en el tacho m
 
-                thrust::fill(Tau.begin()+index,Tau.begin()+index+nuevos,disponibilidad_del_tacho[m]); //(NUEVO) nacen en un tacho disponible
+                //ComentoKARI
+				//thrust::fill(Tau.begin()+index,Tau.begin()+index+nuevos,disponibilidad_del_tacho[m]); //(NUEVO) nacen en un tacho disponible
                 
 				// index en counting iteraror necesario para distintos randoms en cada tacho
 				thrust::transform(
@@ -745,9 +730,10 @@ struct bichos{
 	
     //Recalcular -> eliminar muertos y dejar vivos
     void recalcularN(){
-
+//thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),pupacion.begin(),TdV.begin(),manzana.begin(),Tau.begin()));
+		
 		auto zip_iterator=
-		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),pupacion.begin(),TdV.begin(),manzana.begin(),Tau.begin()));
+		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),pupacion.begin(),TdV.begin(),manzana.begin()));
 		// ordenamos segun estado 0-vivo, 1-muerto
 		int N=N_mobil[0];
 		thrust::sort_by_key(estado.begin(), estado.begin() + N,zip_iterator);		
@@ -805,19 +791,9 @@ struct bichos{
 	//(NUEVO) disminuir el delay=nTau en 1 día para que el tacho eliminado vuelva a estar disponible
    	void delay(int dia){
 	int N=N_mobil[0];
-
-        //chequeo
-		if(dia==140){std::cout << "al final del dia 140 disminuyo en 1 el delay para los tachos" << "\n";}
-		
-		int nmanzanas=tachos_por_manzana.size();
-		for(int i=0;i<nmanzanas;i++){
-			int ntachos=tachos_por_manzana[i].size();
-			for(int j=0;j<ntachos;j++){
-			    if((disponibilidad_de_tachos_por_manzana[i])[j]>0){(disponibilidad_de_tachos_por_manzana[i])[j]--;}
-			    //chequeo
-			    if(dia==140){std::cout << (disponibilidad_de_tachos_por_manzana[i])[j] << "\n"; }
-			}//cierro for para disponibidad de tachos
-		}//cierro for para manzanas	
+	delay_kernel<<<(N + 256-1)/256,256>>>(raw_devTauTacho,dia);
+        cudaDeviceSynchronize();
+       	
 	}; 
 	
 };
@@ -827,19 +803,13 @@ int main(){
 	FILE* archivo=NULL;
 	char miarch[50];
 	
-    //alocamos memoria para el vector que almacena la efectividad por manzana
-    float *E;//array cuyos elementos esla efectividad de propaganda en cada manzana
-    E= (float *)malloc((NUMEROMANZANAS)*sizeof(float));    
-
-    //para un descacharrado fijo en cada manzana
-    for(int j=0;j<NUMEROMANZANAS;j++){E[j]=PROP;}
-
     //alocamos memoria para los vectores donde almaceno el nro de mosquitas por dia, y la suma de todas las poblaciones
     int *Poblacion;
     Poblacion= (int *)malloc((NDIAS+1)*sizeof(int));
     for(int i=1;i<=NDIAS;i++){Poblacion[i]=0;}
 
     //loop para el número de corridas con distinta semilla
+	
     for(int seed=0;seed<NITERACIONES;seed++){
     std::cout << "nro de realizacion: "<< seed+1 << "\n";
     //incializamos semilla
@@ -861,7 +831,7 @@ int main(){
     
         //calculo la población en cada iteración
 	    for(int dia = 1; dia <= NDIAS; dia++){
-	    //std::cout << "DIA" << dia << std::endl;
+	    std::cout << "DIA" << dia << std::endl;
         int tovip=tiempo_entre_oviposiciones(dia);
 	
 	    //std::cout << "matar" << std::endl;
@@ -869,8 +839,8 @@ int main(){
 	    
 	    gpu_timer Reloj_descacharrar;
 	    Reloj_descacharrar.tic();
-	    //std::cout << "descacharrar" << std::endl;
-	    mosquitas.descacharrado(dia,E,&semilla); 
+	    std::cout << "descacharrar" << std::endl;
+	    mosquitas.descacharrado(dia,&semilla); 
 	    tdescacha= tdescacha+Reloj_descacharrar.tac()/60000; //de milisegundos -> minutos
 
 	    gpu_timer Reloj_reproducir;
