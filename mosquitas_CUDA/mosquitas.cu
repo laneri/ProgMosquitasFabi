@@ -571,7 +571,7 @@ struct bichos{
 		DiasDesc=TIEMPODESCACH;
 	}else
 	{
-		DiasDesc=1 + ran2(semilla)*TIEMPODESCACH;      //nro al azar entre [1,14]
+		DiasDesc=1 + ran2(semilla)*2*TIEMPODESCACH;      //nro al azar entre [1,14]
 	}
 
 		if(dia%DiasDesc == 0 && dia > 120 && dia < 320){
