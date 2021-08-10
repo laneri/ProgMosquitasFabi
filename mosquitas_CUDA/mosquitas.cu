@@ -546,10 +546,27 @@ struct bichos{
 				//Solo el primer dia calculo cuantos tachos por manzana voy a descacharrar luego esto queda fijo
 				if(dia==1)
 				{
-				thrust::transform(
+				 /*El siguiente transform con los placeholders no compila bien con la version 11.1 de CUDA*/
+				 /*Tampoco tira error poniendo el CATCH ojo!!!!!!*/ 
+				/*try
+  				{	
+					thrust::transform(
 						devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
 						devDescachManzana.begin(),_1*_2
 					);
+				}
+				catch(thrust::system_error e){
+					std::cerr << "Error inside sort: " << e.what() << std::endl;	
+					exit(1);	
+				}*/		
+				
+				/*Opté por la siguiente opcion que va con todos los compiladores siempre que se agregue lo siguiente en el makefile
+				 compilar con nvcc --expt-extended-lambda*/
+				thrust::transform(
+						devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
+						devDescachManzana.begin(),[=]__device__ (float x,float y){return x*y;}
+					);
+				
 				//tendre el numero de tachos a descacharrar por manzana en devDescachManzana
 				int descachTot=0;
 				descachTot=thrust::reduce(devDescachManzana.begin(),devDescachManzana.end(),descachTot);
