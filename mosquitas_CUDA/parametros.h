@@ -4,18 +4,18 @@ Relaciones a tener en cuenta para modificar parรกmetros
 - NUMEROTACHOS=NINICIAL
 */
 //Parámetros generales
-#define NINICIAL 		    25	        //número inicial de mosquitos N=125 para 5 mosquitas x manzana.
-#define NUMEROTACHOS		25          //máximo número de tachos Ntachos=Nmosquitas
+#define NINICIAL 		    5 //12500	        //número inicial de mosquitos N=125 para 5 mosquitas x manzana.
+#define NUMEROTACHOS		5// 12500          //máximo número de tachos Ntachos=Nmosquitas
 #define MAXIMONUMEROBICHOS	80000000    //número maximo de huevos
-#define LADO           	    5           //Lado de la grilla L=5
+#define LADO           	    10 //1000          //Lado de la grilla L=5
 #define NUMEROMANZANAS		(LADO*LADO)   //número de manzanas que sea L*L=5*5=25
 
 //#define NUMERODEHUEVOS		10 		//número de huevos por oviposicion	
 
 //Parámetros del descacharrado
 #define BLOCKS             32 //kernel de descacharrado
-#define DESCACHFIJO        1 //descacharrado fijo=1, aleatorio=0
-#define TIEMPODESCACH      7 //cada 2 dias (fijo o aleatorio con la distribucion correspondiente)
+#define DESCACHFIJO        0 //descacharrado fijo=1, aleatorio=0
+#define TIEMPODESCACH      7 //cada 7 dias (fijo o aleatorio con la distribucion correspondiente)
 #define nTau               5 //tiempo que tardan en estar disponibles los tachos nuevamente
 
 //Parámetros vitales de las mosquitas
