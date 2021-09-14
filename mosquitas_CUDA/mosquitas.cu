@@ -624,7 +624,7 @@ struct bichos{
 		DiasDesc=1 + ran2(semilla)*2*TIEMPODESCACH;      //nro al azar entre [1,14]
 		}	
 	 //Para evitar sincronizacion en el descacharrado cada tacho comenzará a descacharrar un dia aleatorio de la semana
-	thrust::fill(devStartDesc.begin(),devStartDesc.end(),121 + ran2(semilla)*6);//
+	thrust::fill(devStartDesc.begin(),devStartDesc.end(),121 + ran2(semilla)*6);// + ran2(semilla)*6
 	
 	    if(dia > 120 && dia < 320){
 		//if(dia%DiasDesc == 0 && dia > 120 && dia < 320){
@@ -726,7 +726,7 @@ struct bichos{
 						for(int k=0;k<cuantos;k++){
 							tachosDeLaManzana[k]=ptr_h[k];
 						}	
-						std::cout << "ineficiente?=" << relojito.tac() << std::endl;
+						//std::cout << "ineficiente?=" << relojito.tac() << std::endl;
 							
 						int* ptr_d=thrust::raw_pointer_cast(tachosDeLaManzana.data());
 
