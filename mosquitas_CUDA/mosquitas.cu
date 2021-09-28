@@ -1,10 +1,8 @@
-
 //*************************************************************************************************************
 //                                  Programa FORTRAN de mosquita para una manzana versión (13/6/2020) 
 //                                  Autora Fabiana Laguna
 //*************************************************************************************************************
 /*En la naturaleza, cada oviposicion son aprox. 64 huevos y la mitad son hembras. En este código solamente se modela la dinámica de las hembras. Si se quisiera agregar a los machos, se multiplica por dos. Para ello se considera:
-
 1- el número de huevos que deposita la hembra  entre 10 y 35 por oviposicion (distribució uniforme).
 2- la mortalidad diaria de huevos, pupas, larvas y adultas independiente de la Temperatura.
 3- el 83% de las larvas pasan a adultas jovenes, es decir, mueren con probab 0.17 al pasar del agua al aire
@@ -23,20 +21,17 @@
 11- la mortalidad de las hembras adultas entre 28 y 30 dias (distribución uniforme).
 12- la saturación de los tachos, es decir, un número maximo de huevos permitidos por tacho
 13- la transferencia de tacho, es decir, cuando un tacho satura, la hembra busca otro tacho para depositar sus huevos.
-
 Las condiciones iniciales para cada agente mosquita tiene cuatro propiedades
     -1 o 0 (si está viva o muerta)
     -edad (avanza de a 1 dia)
     -cohorte (tacho en el que vive)
     -tiempo en el que se vuelve adulta
     -dias que va a vivir
-
 //*************************************************************************************************************
 //                                  Programa CUDA/C de mosquitas para N manzanas version (2021) 
 //                                  Autoras Ana A. Gramajo y Karina Laneri
 //*************************************************************************************************************
 Se extiende el código serializado de Fabiana, a uno paralelizado ya que se agrega 
-
     - la manzana donde se encuentra el cohorte en el que vive la mosquita a las condiciones iniciales.
     - la espacialidad, considerando que mosquita puede cambiar de manzana a 1ros vecinos para depositar sus huevos cuando se satura su cohorte original.
     
@@ -75,6 +70,8 @@ using namespace thrust::placeholders;
 #define ntachito		    5  //agreado para la funcion serial reproducir que viene del codigo bichos.cu
 #define sat 			    800     //saturación de huevos por tacho viene de bichos.cu reproducir
 
+FILE *archivo=NULL, *archivo1=NULL, *archivo2=NULL, *archivo3=NULL;
+char miarch[50];
 
 int tiempo_entre_oviposiciones(int dia){
 	int t;
@@ -334,6 +331,46 @@ struct aereaeneltacho
 	}
 };
 
+// NUEVO: functorcito para contar la población total por manzana
+struct vivos_x_manzana{
+    int m;
+	vivos_x_manzana(int m_):m(m_){};   
+	__device__ bool operator()(thrust::tuple<int,int> tupla)
+	{
+        int estado=thrust::get<0>(tupla); //NUEVO:cambie el orden de la tupla
+        int manzana=thrust::get<1>(tupla);
+		return (estado == ESTADOVIVO && manzana == m);
+	}
+};
+
+//NUEVO: functorcito para contar acuáticos por manzana
+struct acuaticos_x_manzana{
+    int m;
+	acuaticos_x_manzana(int m_):m(m_){};   
+	
+	__device__ bool operator()(thrust::tuple<int,int,int> tupla)
+	{
+        int edad=thrust::get<0>(tupla); //NUEVO:cambie el orden de la tupla
+        int pupacion=thrust::get<1>(tupla);
+        int manzana=thrust::get<2>(tupla);
+		return (edad < pupacion && manzana == m);
+	}
+};
+//NUEVO: functorcito para contar adulto por manzana
+struct adultos_x_manzana{
+    int m;
+	adultos_x_manzana(int m_):m(m_){};   
+	
+	__device__ bool operator()(thrust::tuple<int,int,int> tupla)
+	{
+        int edad=thrust::get<0>(tupla); 
+        int pupacion=thrust::get<1>(tupla);
+        int manzana=thrust::get<2>(tupla);
+		return (edad >= pupacion && manzana == m);
+	}
+};
+
+
 //functorcito para contar adultos en la población
 struct poblacion_1{
 	__device__ bool operator()(thrust::tuple<int,int> tupla)
@@ -372,7 +409,7 @@ struct bichos{
 	thrust::device_vector<int> nacidos; // tiene el num de tachos elementos, numero de nacidos por tacho
 	thrust::device_vector<int> devTauTacho; //NUEVOKARI tiene la dispo del tacho 0 disponible, no cero no disponible
 	thrust::device_vector<int> devDiaDelTacho;//NUEVOKARI vector en device con numero de tachos elementos: transcurrir de los dias en cada tacho (esto permite descacharrar en dias diferentes)
-    thrust::device_vector<int> devFreqDesc;//NUEVOKARI frecuencia en dias con la que se descacharra cada tacho
+    	thrust::device_vector<int> devFreqDesc;//NUEVOKARI frecuencia en dias con la que se descacharra cada tacho
 	//Ejemplo: si esta fija en 7, todos los tachos se descacharran cada 7 dias. aleatorio alrededor de 7 
 	//algunos descacharran cada 5 otros cada 8 etc.
 	thrust::device_vector<int> devStartDesc;//NUEVOKARI cada tacho comienza a descacharrar un dia al azar de la semana para evitar sincronia
@@ -384,7 +421,7 @@ struct bichos{
 	thrust::device_vector<int> devDescachManzana;// Num de tachos a descacharrar por manzana
 	
 	thrust::device_vector<int> devIndicesDescach; // NUEVOKARIindice primer tacho de cada manzana
-    thrust::device_vector<bool> mask; //
+    	thrust::device_vector<bool> mask; //
 
 	// arrays medianos en host, numero_manzanas elementos
 	std::vector<std::vector<int> > tachos_por_manzana; //tachos_por_manzana[i]=vector de tachos de manzana i 
@@ -483,10 +520,8 @@ struct bichos{
 		//para considerar una distribucion de Poisson de los tachos
         /*std::default_random_engine generator;
         std::poisson_distribution<int> distribution(65);
-
 	    const int nrolls = 100000; // number of experiments
   	    const int nstars = 100;   // maximum number of stars to distribute
-
 	    for (int i=0; i<nrolls; ++i) {
 	    int number = distribution(generator);
 	    if (number< N_) ++tacho[number];
@@ -507,21 +542,19 @@ struct bichos{
 		    
     		tacho[i] = i;			                                        //tacho en el que se encuentra la mosquita
 
-		    manzana_del_tacho[tacho[i]]=int (i/5);                          //para 5 tachos por manzana
-    		//manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS); //le asigno al tacho una manzana al azar
+		   // manzana_del_tacho[tacho[i]]=int (i/5);                          //para 5 tachos por manzana
+    		    manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS); //le asigno al tacho una manzana al azar
 		    manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
 		    tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
-    		devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
-			
-			devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
-
-			//int tachosxmanzana=tachos_por_manzana[manzana[i]].size();      //nro de tachos x manzana
-			    //if(tachosxmanzana <=9){                                    //pongo hasta 9 tachos por manzana
+ 	   	    devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
+		    devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
+		    int tachosxmanzana=tachos_por_manzana[manzana[i]].size();      //nro de tachos x manzana
+			if(tachosxmanzana <=9){                                    //pongo hasta 9 tachos por manzana
 			    estado[i] = ESTADOVIVO; 	      		                    //todas vivas inicialmente
 			    edad[i] = ran2(semilla)*7+19; 	                            //todas adultas al principio 
 			    pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                   //dia de pupacion (entre los 15 y 19 dias)
 			    TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
-		//}
+			}
 		N_mobil[0]=N_;
 		}
 	};	
@@ -790,7 +823,7 @@ struct bichos{
 		
 	};
 
-	void conteo_huevosdebichoscu(int dia){
+/*	void conteo_huevosdebichoscu(int dia){
 	int N=N_mobil[0];
 	//conteo de huevos
 		for(int i=0;i < N; i++){ 
@@ -802,43 +835,43 @@ struct bichos{
 		} 
 	};
 
-// 	void reproducirdebichoscu(int dia,int tovip,long *semilla){	
-// 	int indice=N_mobil[0];
-// 	//nacimientos
-// 	int mosqsat=0;
-// 		for(int i=0;i < indice;i++){
-// 			if(estado[i] == ESTADOVIVO && edad[i] > pupacion[i] && edad[i]%tovip == 0){
+ 	void reproducirdebichoscu(int dia,int tovip,long *semilla){	
+ 	int indice=N_mobil[0];
+ 	//nacimientos
+ 	int mosqsat=0;
+ 		for(int i=0;i < indice;i++){
+ 			if(estado[i] == ESTADOVIVO && edad[i] > pupacion[i] && edad[i]%tovip == 0){
 // etiqueta:			if (tach[tacho[i]] < sat){ 
-// //				if (tach[tacho[i]] < sat){ 
-//  					  int iovip=10 + (ran2(semilla)*25); 
-//    						for(int ik=0;ik < iovip;ik++){ 
-//  						estado[indice]=ESTADOVIVO;
-//  						edad[indice]=1;   
-//  						tacho[indice]=tacho[i]; 
-// 		         			pupacion[indice]=TPUPAD-2+(ran2(semilla)*5);	//dias de pupacion
-// 	         				TdV[indice]=ran2(semilla)*6+27;  
-// 						int j=tacho[indice];
-//  						tach[j]++;
-// 						indice++;
-//    						} 
-// 				}
-// 				else{
-// 			        mosqsat++;   			//sumo las mosquitas que no pudieron poner en este tiempo (solo como dato)
-// 				         for(int j=0;j < ntachito;j++){      //si no tiene lugar en su tacho migra a otro 
-// 			          		if(tach[j] < sat){   	     // se fija si sus huevos van a tener lugar 
-// 			           		tacho[i]=j;          	     //se mueve
-// 					        goto etiqueta;               //y arranca a oviponer
-// 			        		}
-// 			       		 }
-// 				}
+ //				if (tach[tacho[i]] < sat){ 
+  					  int iovip=10 + (ran2(semilla)*25); 
+    						for(int ik=0;ik < iovip;ik++){ 
+  						estado[indice]=ESTADOVIVO;
+  						edad[indice]=1;   
+  						tacho[indice]=tacho[i]; 
+ 		         			pupacion[indice]=TPUPAD-2+(ran2(semilla)*5);	//dias de pupacion
+ 	         				TdV[indice]=ran2(semilla)*6+27;  
+ 						int j=tacho[indice];
+  						tach[j]++;
+ 						indice++;
+    						} 
+ 				}
+ 				else{
+ 			        mosqsat++;   			//sumo las mosquitas que no pudieron poner en este tiempo (solo como dato)
+ 				         for(int j=0;j < ntachito;j++){      //si no tiene lugar en su tacho migra a otro 
+ 			          		if(tach[j] < sat){   	     // se fija si sus huevos van a tener lugar 
+ 			           		tacho[i]=j;          	     //se mueve
+ 					        goto etiqueta;               //y arranca a oviponer
+ 			        		}
+ 			       		 }
+ 				}
   
-//    			} 
-// 		}
-// 		// actualiza el numero de bichos si no se sobrepasa el maximo
-// 		N_mobil[0]=indice;
+    			} 
+ 		}
+ 		// actualiza el numero de bichos si no se sobrepasa el maximo
+ 		N_mobil[0]=indice;
 
-// 	};
-
+ 	};
+*/
 
     //Recalcular -> eliminar muertos y dejar vivos
     void recalcularN(){
@@ -909,18 +942,56 @@ struct bichos{
        	
 	}; 
 	
+	void output(int dia){
+	int N=N_mobil[0];
+
+	int nmanzanas=tachos_por_manzana.size();
+		for(int i=0;i<nmanzanas;i++){
+		        int conMosq= thrust::count_if(
+	                thrust::make_zip_iterator(thrust::make_tuple(estado.begin(),manzana.begin())),
+	                thrust::make_zip_iterator(thrust::make_tuple(estado.begin() +  N,manzana.begin() + N)),
+	                vivos_x_manzana(i)
+		            );
+
+		        int conAd= thrust::count_if(
+	                thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin(),manzana.begin())),
+	                thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin()+N,manzana.begin() + N)),
+	                adultos_x_manzana(i)
+		            );
+
+		        int conAc= thrust::count_if(
+        	        thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin(),manzana.begin())),
+        	        thrust::make_zip_iterator(thrust::make_tuple(edad.begin() +  N,pupacion.begin()+N,manzana.begin() + N)),
+        	        acuaticos_x_manzana(i)
+	            );
+
+        	fprintf(archivo1,"%d\t%d\t%d\n",dia,i,conMosq);
+        	fprintf(archivo2,"%d\t%d\t%d\n",dia,i,conAd);
+        	fprintf(archivo3,"%d\t%d\t%d\n",dia,i,conAc);
+		}//cierro for para nmanzanas
+
+	fprintf(archivo1,"\n");
+	fprintf(archivo2,"\n");
+	fprintf(archivo2,"\n");
+	};
+	
 };
 
 int main(int argc,char **argv){
 
-	FILE* archivo=NULL;
-	char miarch[50];
+    thrust::host_vector <int> PoblacionT;           //Población de mosquitas Total= Adultas+acuáticas
+    thrust::host_vector <int> PoblacionAd;          //Población de mosquitas Adultas
+    thrust::host_vector <int> PoblacionAc;          //Población de mosquitas Acuáticas
+    
+    PoblacionT.resize(NDIAS+1);	
+    PoblacionAd.resize(NDIAS+1);
+    PoblacionAc.resize(NDIAS+1);
 	
-    //alocamos memoria para los vectores donde almaceno el nro de mosquitas por dia, y la suma de todas las poblaciones
-    int *Poblacion;
-    Poblacion= (int *)malloc((NDIAS+1)*sizeof(int));
-    for(int i=1;i<=NDIAS;i++){Poblacion[i]=0;}
-
+    //inicializo los arrays en 0
+    thrust::fill(PoblacionT.begin(),PoblacionT.end(),0);
+    thrust::fill(PoblacionAd.begin(),PoblacionAd.end(),0);
+    thrust::fill(PoblacionAc.begin(),PoblacionAc.end(),0);
+    
     //loop para el número de corridas con distinta semilla
 	
     for(int seed=0;seed<NITERACIONES;seed++){
@@ -928,9 +999,7 @@ int main(int argc,char **argv){
     //incializamos semilla
     //long semilla=(long )time(NULL);
     //long semilla = -739;
-	long semilla=atoi(argv[1]);
-    std::cout << "semilla=" << semilla << std::endl;
-
+    long semilla= -739 + atoi(argv[1]);//para la librería ran2 el input tiene que ser negativo
 
     //para un descacharrado distinto en casa manzana, lo pongo dentro del loop para que varíe con la semilla
         //for(int j=0;j<NUMEROMANZANAS;j++){E[j]=0.4 + ran2(&semilla)*0.5;}
@@ -940,9 +1009,17 @@ int main(int argc,char **argv){
     
     //inicializo
     bichos mosquitas(NINICIAL,&semilla);
+    //Guardo población total
+    sprintf(miarch,"manzanas_vs_Nro-de-mosquitas_%d.txt",seed);
+    archivo1=fopen(miarch,"w");
+    sprintf(miarch,"manzanas_vs_Nro-de-adultas_%d.txt",seed);
+    archivo2=fopen(miarch,"w");
+    sprintf(miarch,"manzanas_vs_Nro-de-acuaticas_%d.txt",seed);
+    archivo3=fopen(miarch,"w");
+    
 
     double treprodparalelo=0;
-	double treprodserial=0;
+    //double treprodserial=0;
     
     double trecalc=0;
     double tdescacha=0;
@@ -950,7 +1027,7 @@ int main(int argc,char **argv){
         //calculo la población en cada iteración
 	    for(int dia = 1; dia <= NDIAS; dia++){
 	    std::cout << "DIA" << dia << std::endl;
-        int tovip=tiempo_entre_oviposiciones(dia);
+           int tovip=tiempo_entre_oviposiciones(dia);
 	
 	    //std::cout << "matar" << std::endl;
 	    mosquitas.mortalidades(dia);
@@ -965,7 +1042,7 @@ int main(int argc,char **argv){
 	    Reloj_reproducirparalelo.tic();
 	    //std::cout << "reproducir" << std::endl;
 	    mosquitas.reproducir(dia,tovip); //version paralela tarda mucho
-		treprodparalelo= treprodparalelo+Reloj_reproducirparalelo.tac()/60000; //de milisegundos -> minutos
+	    treprodparalelo= treprodparalelo+Reloj_reproducirparalelo.tac()/60000; //de milisegundos -> minutos
 		
 		// gpu_timer Reloj_reproducirserial;
 	    // Reloj_reproducirserial.tic();
@@ -988,7 +1065,10 @@ int main(int argc,char **argv){
 	    //std::cout << "envejecer poblacion" << std::endl;
 	    mosquitas.envejecer(dia);
 	    mosquitas.delay(dia); //(NUEVO) disminuyo en un dia el delay=nTau de los tachos que fueron vaciados
-		Poblacion[dia]= vivas;//guardo en un vector el nro de mosquitas para una determinada semilla
+	    PoblacionT[dia]= vivas;//guardo en un vector el nro de mosquitas para una determinada semilla
+            PoblacionAd[dia]= adultas;
+            PoblacionAc[dia]= acuaticas;
+            mosquitas.output(dia);//salida de multiples archivos manzanas vs T, manzanas vs Ad, manzanas vs Ac
 	    }//cierro loop para dias
 
        //tiempos de cáculo en GPU***************************************************		
@@ -996,17 +1076,32 @@ int main(int argc,char **argv){
        printf("Tiempo de cálculo total para Población total de mosquitas en GPU: %lf minutos\n",t);
        printf("Tiempo en descacharrar: %lf minutos\n",tdescacha);
        printf("Tiempo en reproducir paralelo: %lf minutos\n",treprodparalelo);
-	   printf("Tiempo en reproducir serial: %lf minutos\n",treprodserial);
+//     printf("Tiempo en reproducir serial: %lf minutos\n",treprodserial);
        printf("Tiempo en recalcular: %lf minutos\n",trecalc);	
        //****************************************************************************
        std::cout << "\n";
         //miarch es un string de caracteres donde guardo el nombre del archivo cambiando la semilla con cada iteracion
-    
-	    sprintf(miarch,"POBLACION_%d.txt",seed);
+        
+        //Guardo población total
+	sprintf(miarch,"POBLACION-T_%d.txt",seed);
     	archivo=fopen(miarch,"w");
     	    for (int i=1;i<=NDIAS;i++){
-		    fprintf(archivo,"%d\t%d \n",i,Poblacion[i]);}
-		fclose(archivo); 
+	    fprintf(archivo,"%d\t%d \n",i,PoblacionT[i]);}
+	fclose(archivo); 
+		
+        //guardo población adultos
+	sprintf(miarch,"POBLACION-Ad_%d.txt",seed);
+    	archivo=fopen(miarch,"w");
+    	    for (int i=1;i<=NDIAS;i++){
+	    fprintf(archivo,"%d\t%d \n",i,PoblacionAd[i]);}
+	fclose(archivo); 
+		
+        //guardo población acuáticas
+	sprintf(miarch,"POBLACION-Ac_%d.txt",seed);
+    	archivo=fopen(miarch,"w");
+    	    for (int i=1;i<=NDIAS;i++){
+	    fprintf(archivo,"%d\t%d \n",i,PoblacionAc[i]);}
+	fclose(archivo); 
     }//cierro loop para el número de ITERACIONES
     
 return 0;		
