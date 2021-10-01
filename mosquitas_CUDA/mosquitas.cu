@@ -70,7 +70,7 @@ using namespace thrust::placeholders;
 #define ntachito		    5  //agreado para la funcion serial reproducir que viene del codigo bichos.cu
 #define sat 			    800     //saturación de huevos por tacho viene de bichos.cu reproducir
 
-FILE *archivo=NULL, *archivo1=NULL, *archivo2=NULL, *archivo3=NULL;
+FILE *archivoT=NULL, *archivoAd=NULL, *archivoAc=NULL, *archivo1=NULL, *archivo2=NULL, *archivo3=NULL;
 char miarch[50];
 
 int tiempo_entre_oviposiciones(int dia){
@@ -197,7 +197,7 @@ __global__ void delay_kernel(int *devTauTacho,int dia,int *devDiaDelTacho)
 
 //el siguiente kernel me crea una mascara de los tachos para descacharrar con 1=descacharro
 __global__ 
-void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask, int *diadeltacho, int *freq, int *comienzodesc)
+void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask, int *diadeltacho, int *freq, int *comienzodesc,int dia)
 {
     int manzana=threadIdx.x+blockIdx.x*blockDim.x;
 
@@ -205,6 +205,19 @@ void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask, int *diadeltacho, i
         int tachoi=ind[manzana];
         int tachof=(manzana+1<NUMEROMANZANAS)?ind[manzana+1]:NUMEROTACHOS;
         int faltandescacharrar=tpd[manzana];
+        
+        RNG philox;         
+	RNG::ctr_type c={{}};
+	RNG::key_type k={{}};
+	RNG::ctr_type r;
+	k[0]=manzana; 
+	c[1]=dia;
+	c[0]=SEMILLAGLOBAL; 
+		
+    	r = philox(c, k); 
+    	double azar;
+    	azar=(u01_closed_open_32_53(r[0]));//numero aleatorios entre [0,1)
+    	
         for(int tacho=tachoi;tacho<tachof && faltandescacharrar>0;tacho++){
 			//if dia del tacho modulo freq =0 me fijo si esta disponible y lo marco con 1 para descacharrar
 			//le agrego innicialmente una no sincronizacion empezando a descacharrar un dia entre 1 y 7
@@ -214,7 +227,7 @@ void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask, int *diadeltacho, i
 				{
                 	mask[tacho]=1;
                 	faltandescacharrar--;
-					disp[tacho]=nTau;
+					disp[tacho]=1 + azar*20;
 				}
 			}else{mask[tacho]=0;}
         }
@@ -669,7 +682,7 @@ struct bichos{
         raw_mask,
 		raw_devDiaDelTacho,
 		thrust::raw_pointer_cast(devFreqDesc.data()),
-		thrust::raw_pointer_cast(devStartDesc.data())
+		thrust::raw_pointer_cast(devStartDesc.data()),dia
     	);
 
 	// // Verifico que tachos se van a descacharrar 
@@ -701,7 +714,7 @@ struct bichos{
 		if(indice==0) {
 			std::cout << "NO HAY MAS MOSQUITAS PARA REPRODUCIRSE" << std::endl; 	
 
-		//exit(1);//comenté esta linea porque terminaba el programa y no era necesario
+		exit(1);//comenté esta linea porque terminaba el programa y no era necesario
 		}else{
 
 		//nacimientos
@@ -998,8 +1011,8 @@ int main(int argc,char **argv){
     std::cout << "nro de realizacion: "<< seed+1 << "\n";
     //incializamos semilla
     //long semilla=(long )time(NULL);
-    //long semilla = -739;
-    long semilla= -739 + atoi(argv[1]);//para la librería ran2 el input tiene que ser negativo
+    long semilla = -739;
+    //long semilla= -739 + atoi(argv[1]);
 
     //para un descacharrado distinto en casa manzana, lo pongo dentro del loop para que varíe con la semilla
         //for(int j=0;j<NUMEROMANZANAS;j++){E[j]=0.4 + ran2(&semilla)*0.5;}
@@ -1009,14 +1022,25 @@ int main(int argc,char **argv){
     
     //inicializo
     bichos mosquitas(NINICIAL,&semilla);
-    //Guardo población total
+    //Guardo población total por manzana
     sprintf(miarch,"manzanas_vs_Nro-de-mosquitas_%d.txt",seed);
     archivo1=fopen(miarch,"w");
+    //guardo poblacion adultas por manzana
     sprintf(miarch,"manzanas_vs_Nro-de-adultas_%d.txt",seed);
     archivo2=fopen(miarch,"w");
+    //guardo poblacion acuaticas por manzana
     sprintf(miarch,"manzanas_vs_Nro-de-acuaticas_%d.txt",seed);
     archivo3=fopen(miarch,"w");
-    
+    //Guardo población total por dia
+    sprintf(miarch,"POBLACION-T_%d.txt",seed);
+    archivoT=fopen(miarch,"w");
+    //Guardo población adulta por dia
+    sprintf(miarch,"POBLACION-Ad_%d.txt",seed);
+    archivoAd=fopen(miarch,"w");
+    //Guardo población acuatica por dia
+    sprintf(miarch,"POBLACION-Ac_%d.txt",seed);
+    archivoAc=fopen(miarch,"w");
+
 
     double treprodparalelo=0;
     //double treprodserial=0;
@@ -1027,7 +1051,7 @@ int main(int argc,char **argv){
         //calculo la población en cada iteración
 	    for(int dia = 1; dia <= NDIAS; dia++){
 	    std::cout << "DIA" << dia << std::endl;
-           int tovip=tiempo_entre_oviposiciones(dia);
+            int tovip=tiempo_entre_oviposiciones(dia);
 	
 	    //std::cout << "matar" << std::endl;
 	    mosquitas.mortalidades(dia);
@@ -1069,6 +1093,9 @@ int main(int argc,char **argv){
             PoblacionAd[dia]= adultas;
             PoblacionAc[dia]= acuaticas;
             mosquitas.output(dia);//salida de multiples archivos manzanas vs T, manzanas vs Ad, manzanas vs Ac
+            fprintf(archivoT,"%d\t%d \n",dia,PoblacionT[dia]);
+	    fprintf(archivoAd,"%d\t%d \n",dia,PoblacionAd[dia]);
+	    fprintf(archivoAc,"%d\t%d \n",dia,PoblacionAc[dia]);
 	    }//cierro loop para dias
 
        //tiempos de cáculo en GPU***************************************************		
@@ -1083,25 +1110,9 @@ int main(int argc,char **argv){
         //miarch es un string de caracteres donde guardo el nombre del archivo cambiando la semilla con cada iteracion
         
         //Guardo población total
-	sprintf(miarch,"POBLACION-T_%d.txt",seed);
-    	archivo=fopen(miarch,"w");
-    	    for (int i=1;i<=NDIAS;i++){
-	    fprintf(archivo,"%d\t%d \n",i,PoblacionT[i]);}
-	fclose(archivo); 
-		
-        //guardo población adultos
-	sprintf(miarch,"POBLACION-Ad_%d.txt",seed);
-    	archivo=fopen(miarch,"w");
-    	    for (int i=1;i<=NDIAS;i++){
-	    fprintf(archivo,"%d\t%d \n",i,PoblacionAd[i]);}
-	fclose(archivo); 
-		
-        //guardo población acuáticas
-	sprintf(miarch,"POBLACION-Ac_%d.txt",seed);
-    	archivo=fopen(miarch,"w");
-    	    for (int i=1;i<=NDIAS;i++){
-	    fprintf(archivo,"%d\t%d \n",i,PoblacionAc[i]);}
-	fclose(archivo); 
+	fclose(archivoT); 
+	fclose(archivoAd); 
+	fclose(archivoAc); 
     }//cierro loop para el número de ITERACIONES
     
 return 0;		
