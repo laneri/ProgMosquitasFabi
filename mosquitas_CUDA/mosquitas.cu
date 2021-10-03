@@ -1011,8 +1011,8 @@ int main(int argc,char **argv){
     std::cout << "nro de realizacion: "<< seed+1 << "\n";
     //incializamos semilla
     //long semilla=(long )time(NULL);
-    long semilla = -739;
-    //long semilla= -739 + atoi(argv[1]);
+    //long semilla = -739;
+    long semilla= -739 + atoi(argv[1]);
 
     //para un descacharrado distinto en casa manzana, lo pongo dentro del loop para que varíe con la semilla
         //for(int j=0;j<NUMEROMANZANAS;j++){E[j]=0.4 + ran2(&semilla)*0.5;}
