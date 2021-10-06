@@ -227,7 +227,7 @@ void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask, int *diadeltacho, i
 				{
                 	mask[tacho]=1;
                 	faltandescacharrar--;
-					disp[tacho]=1 + azar*20;
+					disp[tacho]=nTau;//1 + azar*10;
 				}
 			}else{mask[tacho]=0;}
         }
@@ -555,8 +555,19 @@ struct bichos{
 		    
     		tacho[i] = i;			                                        //tacho en el que se encuentra la mosquita
 
-		   // manzana_del_tacho[tacho[i]]=int (i/5);                          //para 5 tachos por manzana
-    		    manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS); //le asigno al tacho una manzana al azar
+		   if(DISTRIBUCIONTACHOS){
+		    manzana_del_tacho[tacho[i]]=int (i/5); 			      //para 5 tachos por manzana
+		    manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
+		    tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
+ 	   	    devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
+		    devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
+		    estado[i] = ESTADOVIVO; 	      		                    //todas vivas inicialmente
+		    edad[i] = ran2(semilla)*7+19; 	                            //todas adultas al principio 
+		    pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                      //dia de pupacion (entre los 15 y 19 dias)
+		    TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
+		   }
+    		   else{
+    		    manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS);//le asigno al tacho una manzana al azar    
 		    manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
 		    tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
  	   	    devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
@@ -568,6 +579,7 @@ struct bichos{
 			    pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                   //dia de pupacion (entre los 15 y 19 dias)
 			    TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
 			}
+		   }	
 		N_mobil[0]=N_;
 		}
 	};	
@@ -1011,8 +1023,8 @@ int main(int argc,char **argv){
     std::cout << "nro de realizacion: "<< seed+1 << "\n";
     //incializamos semilla
     //long semilla=(long )time(NULL);
-    //long semilla = -739;
-    long semilla= -739 + atoi(argv[1]);
+    long semilla = -739;
+    //long semilla= -739 + atoi(argv[1]);
 
     //para un descacharrado distinto en casa manzana, lo pongo dentro del loop para que varíe con la semilla
         //for(int j=0;j<NUMEROMANZANAS;j++){E[j]=0.4 + ran2(&semilla)*0.5;}
