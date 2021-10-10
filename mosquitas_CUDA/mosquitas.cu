@@ -65,10 +65,22 @@ typedef r123::Philox2x32 RNG; // particular counter-based RNG
 
 #include<stdio.h>
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
+
+
 using namespace thrust::placeholders;
 
-#define ntachito		    5  //agreado para la funcion serial reproducir que viene del codigo bichos.cu
-#define sat 			    800     //saturación de huevos por tacho viene de bichos.cu reproducir
+//#define ntachito		    5  //agreado para la funcion serial reproducir que viene del codigo bichos.cu
+//#define sat 			    800     //saturación de huevos por tacho viene de bichos.cu reproducir
 
 FILE *archivoT=NULL, *archivoAd=NULL, *archivoAc=NULL, *archivo1=NULL, *archivo2=NULL, *archivo3=NULL;
 char miarch[50];
@@ -407,7 +419,8 @@ struct poblacion_2{
 struct bichos{
 
 	thrust::host_vector<int> tach;
-
+	
+	
 	//defino arrays grandes en device la  info de cada mosquita. Numero_mosquitas elementos
 	thrust::device_vector<int> estado;  //viva o muerta 0/1
 	thrust::device_vector<int> edad;    //edad de la mosquita   
@@ -415,7 +428,7 @@ struct bichos{
 	thrust::device_vector<int> TdV;     //tiempo de vida de cada mosquita
 	thrust::device_vector<int> pupacion; //dia de paso de pupa a adulta de cada mosquita
 	thrust::device_vector<int> manzana; //nro. de manzana de cada mosquita
-
+	thrust::device_vector<int> manzdisp;
 
 
 	// arrays medianos en device, numero_tachos elementos
@@ -474,7 +487,7 @@ struct bichos{
 		pupacion.resize(MAXIMONUMEROBICHOS);
 		TdV.resize(MAXIMONUMEROBICHOS);
 		manzana.resize(MAXIMONUMEROBICHOS);
-
+		manzana_del_tacho.resize(MAXIMONUMEROBICHOS);		
 
 		N_mobil.resize(1);
 		
@@ -483,8 +496,9 @@ struct bichos{
 		devEpropManzana.resize(NUMEROMANZANAS); 
 		devDescachManzana.resize(NUMEROMANZANAS);
 		devIndicesDescach.resize(NUMEROMANZANAS);
+		manzdisp.resize(NUMEROMANZANAS);
 
-		manzana_del_tacho.resize(MAXIMONUMEROBICHOS);
+
 
 		NroTachos.resize(NUMEROMANZANAS);
 
@@ -506,7 +520,8 @@ struct bichos{
 		thrust::fill(devDescachManzana.begin(),devDescachManzana.end(),0);
 		thrust::fill(devIndicesDescach.begin(),devIndicesDescach.end(),0);
 		thrust::fill(mask.begin(),mask.end(),0);
-		
+		thrust::fill(manzdisp.begin(),manzdisp.end(),0); //vector que indica si la manzana todavia tiene lugar para poner tachos
+														//0 tiene lugar 1=no tiene lugar	
 
 		thrust::fill(estado.begin(),estado.end(),0);
 		thrust::fill(edad.begin(),edad.end(),0);
@@ -554,35 +569,47 @@ struct bichos{
 		for(int i=0;i < N_;i++){
 		    
     		tacho[i] = i;			                                        //tacho en el que se encuentra la mosquita
+			
 
-		   if(DISTRIBUCIONTACHOS){
+			if(DISTRIBUCIONTACHOS){
 		    manzana_del_tacho[tacho[i]]=int (i/5); 			      //para 5 tachos por manzana
-		    manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
-		    tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
- 	   	    devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
-		    devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
-		    estado[i] = ESTADOVIVO; 	      		                    //todas vivas inicialmente
-		    edad[i] = ran2(semilla)*7+19; 	                            //todas adultas al principio 
-		    pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                      //dia de pupacion (entre los 15 y 19 dias)
-		    TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
-		   }
-    		   else{
-    		    manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS);//le asigno al tacho una manzana al azar    
-		    manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
-		    tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
- 	   	    devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
-		    devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
-		    int tachosxmanzana=tachos_por_manzana[manzana[i]].size();      //nro de tachos x manzana
-			if(tachosxmanzana <=9){                                    //pongo hasta 9 tachos por manzana
-			    estado[i] = ESTADOVIVO; 	      		                    //todas vivas inicialmente
-			    edad[i] = ran2(semilla)*7+19; 	                            //todas adultas al principio 
-			    pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                   //dia de pupacion (entre los 15 y 19 dias)
-			    TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
 			}
-		   }	
+    		else{
+    		manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS);//le asigno al tacho una manzana al azar 
+			//Yo lo del tope de 9 tachos no lo pondria a menos que lo veamos necesario por alguna razon.
+			int tachosxmanzana=tachos_por_manzana[manzana[i]].size();      //nro de tachos x manzana
+				if(tachosxmanzana > 9){ 
+				manzdisp[manzana[i]]=1; //esta manzana ya no esta disponible entonces sorteo entre las demas	
+				//thrust::device_vector<int>::iterator iter;
+				auto iter=thrust::find(manzdisp.begin(),manzdisp.end(),0); //me tira la posicion de la primer manzana con lugar
+				manzana_del_tacho[tacho[i]]=int(iter-manzdisp.begin()); // 
+				} 
+			}
+
+			manzana[i]=manzana_del_tacho[tacho[i]];                         //manzana en la que está el tacho i
+			tachos_por_manzana[manzana[i]].push_back(tacho[i]);             //para identificar los tachos tengo en la manzana
+ 	   		devTachosManzana[manzana[i]]++; //incremento en 1 tacho en la manzana correspondiente
+			devTauTacho[i]=0; //NUEVOKARI el tacho i esta disponible = 0, estará no disponible cuando no sea cero.
+			estado[i] = ESTADOVIVO; 	      		                    //todas vivas inicialmente
+			edad[i] = ran2(semilla)*7+19; 	                            //todas adultas al principio 
+			pupacion[i] = TPUPAD-2+(ran2(semilla)*5);                      //dia de pupacion (entre los 15 y 19 dias)
+			TdV[i] = ran2(semilla)*6+27 ;	                            //tiempo de vida de 27 a 32
+		
+			
 		N_mobil[0]=N_;
 		}
 	};	
+
+//KARINUEVO: esta funcion sirve para que el programa corte cuando se acaban las mosquitas
+//si no hay mas mosquitas adultas para reproducirse no tiene sentido que el programa siga calculando
+	int getNmobil(){
+		if(N_mobil[0]>0) return N_mobil[0]; 
+		else{
+			std::cout << "no hay mas mosquitas vivas"<< std::endl; std::cout.flush();
+			exit(1);
+		}
+	}
+
 
 	// devuelve un numero de tacho random de la manzana m
 	int nuevo_tacho_misma_manzana(int m){
@@ -591,6 +618,7 @@ struct bichos{
 		int nuevo_tacho=(tachos_por_manzana[m])[r];
 		return nuevo_tacho;
 	}
+	
 	
 	// devuelve numero de manzana sorteada entre las cuatro manzanas vecinas de la manzana m
 		int sorteo_manzana_vecina(int manz){
@@ -606,10 +634,10 @@ struct bichos{
 		manzanas_vecinas[4]=manz; //centro
 		
 		int nvecinos=6; //cuento los vecinos y el centro
-		int r=int((rand()*1.0/RAND_MAX)*nvecinos); //numero aleatorio entre 0 y 6
-		//si sale 5 o 6 elijo el centro (es una forma trucha de darle mas probabilidad al centro)
+		int r=int((rand()*1.0/RAND_MAX)*nvecinos); //numero aleatorio entre 0 y 5
+		//si sale 2,3,4,5 elijo el centro (es una forma trucha de darle mas probabilidad al centro)
 		int manzana_sorteada;
-		if(r>3)
+		if(r>1)
 			{
 			manzana_sorteada=manz;
 			}
@@ -622,14 +650,16 @@ struct bichos{
 
 	void mortalidades(int dia){
 
-	int N=N_mobil[0];
+	int N=getNmobil();
 	//mortalidades varias y muerte por vejez
 	    matar_kernel<<<(N+256-1)/256,256>>>(raw_estado,raw_edad,raw_tacho,raw_pupacion,raw_TdV,raw_N_mobil, dia);	
-		cudaDeviceSynchronize();
+		
+		gpuErrchk( cudaPeekAtLastError() );
+		gpuErrchk( cudaDeviceSynchronize() );
 	};
 
 	void descacharrado(int dia,long *semilla){
-	int N=N_mobil[0];
+	int N=getNmobil();
 	    	
 				//Solo el primer dia calculo cuantos tachos por manzana voy a descacharrar luego esto queda fijo
 				if(dia==1)
@@ -722,7 +752,7 @@ struct bichos{
 	void reproducir(int dia,int tovip)
 	{
 	    
-		int indice=N_mobil[0];
+		int indice=getNmobil();
 		if(indice==0) {
 			std::cout << "NO HAY MAS MOSQUITAS PARA REPRODUCIRSE" << std::endl; 	
 
@@ -905,7 +935,7 @@ struct bichos{
 		auto zip_iterator=
 		thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),tacho.begin(),pupacion.begin(),TdV.begin(),manzana.begin()));
 		// ordenamos segun estado 0-vivo, 1-muerto
-		int N=N_mobil[0];
+		int N=getNmobil();
 		thrust::sort_by_key(estado.begin(), estado.begin() + N,zip_iterator);		
 	
 		// y ahora determinamos la posicion del primer muerto = N_mobil
@@ -917,7 +947,7 @@ struct bichos{
 	//población total adultos + acuáticos
 	int vivos(int dia){
 
-	int N=N_mobil[0];
+	int N=getNmobil();
 
     int poblacion = thrust::count(estado.begin(), estado.begin() + N, ESTADOVIVO);
 	return poblacion;
@@ -926,7 +956,7 @@ struct bichos{
     //población de acuáticos
 	int acuaticos(int dia){
 
-	int N=N_mobil[0];
+	int N=getNmobil();
 	
     int ac= thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
@@ -940,7 +970,7 @@ struct bichos{
     //población de adultos
 	int adultos(int dia){
 
-	int N=N_mobil[0];
+	int N=getNmobil();
 	//el predicado poblacion_1()corresponde a adultos
 	    int ad=thrust::count_if(
                 thrust::make_zip_iterator(thrust::make_tuple(edad.begin(),pupacion.begin())),
@@ -953,7 +983,7 @@ struct bichos{
 
 	//envejecer población
    	void envejecer(int dia){
-	int N=N_mobil[0];
+	int N=getNmobil();
         envejecer_kernel<<<(N + 256-1)/256,256>>>(raw_estado,raw_edad,raw_pupacion,raw_N_mobil,dia);
         cudaDeviceSynchronize();
 	}; 
@@ -961,14 +991,14 @@ struct bichos{
 	//NUEVOKARI disminuir el delay=nTau en 1 día para que el tacho eliminado vuelva a estar disponible 
 	//y llevo cuenta del dia del tacho para poder descacharrar no sincronico
    	void delay(int dia){
-	int N=N_mobil[0];
+	int N=getNmobil();
 	delay_kernel<<<(N + 256-1)/256,256>>>(raw_devTauTacho,dia,raw_devDiaDelTacho);
         cudaDeviceSynchronize();
        	
 	}; 
 	
 	void output(int dia){
-	int N=N_mobil[0];
+	int N=getNmobil();
 
 	int nmanzanas=tachos_por_manzana.size();
 		for(int i=0;i<nmanzanas;i++){

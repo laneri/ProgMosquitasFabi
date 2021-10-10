@@ -16,8 +16,8 @@ Relaciones a tener en cuenta para modificar parรกmetros
 #define BLOCKS             32 //kernel de descacharrado
 #define DESCACHFIJO        0 //descacharrado fijo=1, aleatorio=0
 #define TIEMPODESCACH      7 //cada 7 dias (fijo o aleatorio con la distribucion correspondiente)
-#define nTau               1 //tiempo que tardan en estar disponibles los tachos nuevamente
-#define DISTRIBUCIONTACHOS 0 // para una distribución de 5 tachos por manzana= 1 y distribución aleatoria de hasta 9 tachos x manzana=0
+#define nTau               8 //tiempo que tardan en estar disponibles los tachos nuevamente
+#define DISTRIBUCIONTACHOS 0 // =0 para distrib aleatoria de hasta 9 tachos por manzana y =1 para una distribución de 5 tachos por manzana 
 
 //Parámetros vitales de las mosquitas
 #define ESTADOMUERTO		1
