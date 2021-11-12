@@ -798,34 +798,50 @@ struct bichos{
 				    //if(nuevos+antiguos>SAT && dispo==0){
 				if(nuevos+antiguos>SAT && devTauTacho[m]==0){    
 						nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
+				
+					if(TRANSFERTACHO==1) //transfiero de tacho en misma manzana
+					{
+						int manzanadeltacho;
 						
-						/*Para transferir de tacho*/
+
+						if(TRANSFERMANZANA==1)
+						{
+						/*Para transferir de tacho y de manzana*/
 						/*Muevo LOS ADULTOS a otro tacho de la misma manzana o de una manzana vecina*/
 						int estamanzana = manzana_del_tacho[m];
-						int manzanadeltacho = sorteo_manzana_vecina(estamanzana); //pone en la misma manzana o en una vecina
-						int cuantos=(tachos_por_manzana[manzanadeltacho]).size(); //nro de tachos por manzana
+						manzanadeltacho = sorteo_manzana_vecina(estamanzana); //pone en la misma manzana o en una vecina
+						}else //ovipone en la misma manzana
+						{
+						manzanadeltacho = manzana_del_tacho[m]; //se queda en esta manzana
+						}
 
-						int* ptr_h=(tachos_por_manzana[manzanadeltacho]).data();
+					int cuantos=(tachos_por_manzana[manzanadeltacho]).size(); //nro de tachos por manzana
 
-						gpu_timer relojito;
-						relojito.tic();
-						thrust::device_vector<int> tachosDeLaManzana(cuantos);
+					int* ptr_h=(tachos_por_manzana[manzanadeltacho]).data();
+
+					gpu_timer relojito;
+					relojito.tic();
+					thrust::device_vector<int> tachosDeLaManzana(cuantos);
 
 						for(int k=0;k<cuantos;k++){
 							tachosDeLaManzana[k]=ptr_h[k];
 						}	
 						//std::cout << "ineficiente?=" << relojito.tac() << std::endl;
 							
-						int* ptr_d=thrust::raw_pointer_cast(tachosDeLaManzana.data());
+					int* ptr_d=thrust::raw_pointer_cast(tachosDeLaManzana.data());
 
-						thrust::transform(
-							thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
-							thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
-							thrust::make_counting_iterator(0),
-							tacho.begin(),
-							transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
-						);
+					//el siguiente transform me tira el numero de tacho donde va a oviponer 
+					thrust::transform(
+						thrust::make_zip_iterator(thrust::make_tuple(tacho.begin(),edad.begin())),
+						thrust::make_zip_iterator(thrust::make_tuple(tacho.begin()+indice,edad.begin()+indice)),
+						thrust::make_counting_iterator(0),
+						tacho.begin(),
+						transferirdetacho(m,TPUPAD,ptr_d,cuantos, dia)
+					);
+					
 						
+
+					}	
 						//ComentoKARI //dispo=d_T[m]; //NUEVO disponibilidad del nuevo tacho m luego de hacer la transferencia
 						
 						//Una vez que se llenaron los tachos de la manzana, pone en las manzanas vecinas
@@ -1053,8 +1069,8 @@ int main(int argc,char **argv){
     std::cout << "nro de realizacion: "<< seed+1 << "\n";
     //incializamos semilla
     //long semilla=(long )time(NULL);
-    long semilla = -739;
-    //long semilla= -739 + atoi(argv[1]);
+    //long semilla = -739;
+    long semilla= -739 + atoi(argv[1]);
 
     //para un descacharrado distinto en casa manzana, lo pongo dentro del loop para que varíe con la semilla
         //for(int j=0;j<NUMEROMANZANAS;j++){E[j]=0.4 + ran2(&semilla)*0.5;}
