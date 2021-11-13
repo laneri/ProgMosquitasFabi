@@ -572,7 +572,8 @@ struct bichos{
 			
 
 			if(DISTRIBUCIONTACHOS){
-		    manzana_del_tacho[tacho[i]]=int (i/5); 			      //para 5 tachos por manzana
+		    //manzana_del_tacho[tacho[i]]=int (i/5); 			      //para 5 tachos por manzana
+			manzana_del_tacho[tacho[i]]=int (i/9);  //9 tachos por manzana para igualar condiciones de Fabi de 1 manzana
 			}
     		else{
     		manzana_del_tacho[tacho[i]]=int(ran2(semilla)*NUMEROMANZANAS);//le asigno al tacho una manzana al azar 
@@ -797,12 +798,12 @@ struct bichos{
 				    //Ahora bien, si con los nuevos supero el maximo de huevos por tacho (SAT)y (NUEVO) el tacho está disponible
 				    //if(nuevos+antiguos>SAT && dispo==0){
 				if(nuevos+antiguos>SAT && devTauTacho[m]==0){    
-						nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
-				
+						//nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
+						nuevos=0; //para imitar lo que hace Fabi que no llena el tacho cuando ve que se va a pasar
 					if(TRANSFERTACHO==1) //transfiero de tacho en misma manzana
 					{
 						int manzanadeltacho;
-						
+
 
 						if(TRANSFERMANZANA==1)
 						{
