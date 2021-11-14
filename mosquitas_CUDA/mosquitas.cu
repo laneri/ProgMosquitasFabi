@@ -232,8 +232,9 @@ void kernelUnaDim(int *tpd, int *ind, int *disp, bool *mask, int *diadeltacho, i
     	
         for(int tacho=tachoi;tacho<tachof && faltandescacharrar>0;tacho++){
 			//if dia del tacho modulo freq =0 me fijo si esta disponible y lo marco con 1 para descacharrar
-			//le agrego innicialmente una no sincronizacion empezando a descacharrar un dia entre 1 y 7
-			if(diadeltacho[tacho] == comienzodesc[tacho] | diadeltacho[tacho]%freq[tacho]==0)
+			//le agrego innicialmente una no sincronizacion empezando a descacharrar un dia aleatorio entre 1 y 7
+			if( (diadeltacho[tacho] + comienzodesc[tacho]) %freq[tacho]==0) //para que no esten sincronizados
+			//if(diadeltacho[tacho] == comienzodesc[tacho] | diadeltacho[tacho]%freq[tacho]==0) esto no hacia lo que queriamos
 			{
             	if(disp[tacho]==0) //el tacho esta disponible
 				{
@@ -662,59 +663,72 @@ struct bichos{
 	void descacharrado(int dia,long *semilla){
 	int N=getNmobil();
 	    	
-				//Solo el primer dia calculo cuantos tachos por manzana voy a descacharrar luego esto queda fijo
-				if(dia==1)
-				{
-				 /*El siguiente transform con los placeholders no compila bien con la version 11.1 de CUDA*/
-				 /*Tampoco tira error poniendo el CATCH ojo!!!!!!*/ 
-				/*try
-  				{	
-					thrust::transform(
-						devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
-						devDescachManzana.begin(),_1*_2
-					);
-				}
-				catch(thrust::system_error e){
-					std::cerr << "Error inside sort: " << e.what() << std::endl;	
-					exit(1);	
+		//Solo el primer dia calculo cuantos tachos por manzana voy a descacharrar luego esto queda fijo
+		if(dia==1)
+		{
+		 /*El siguiente transform con los placeholders no compila bien con la version 11.1 de CUDA*/
+		 /*Tampoco tira error poniendo el CATCH ojo!!!!!!*/ 
+			/*try
+  			{	
+			thrust::transform(
+			devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
+			devDescachManzana.begin(),_1*_2
+			);
+			}
+			catch(thrust::system_error e){
+			std::cerr << "Error inside sort: " << e.what() << std::endl;	
+			exit(1);	
 				}*/		
 				
-				/*Opté por la siguiente opcion que va con todos los compiladores siempre que se agregue lo siguiente en el makefile
-				 compilar con nvcc --expt-extended-lambda*/
-				thrust::transform(
-						devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
-						devDescachManzana.begin(),[=]__device__ (float x,float y){return x*y;}
-					);
+			/*Opté por la siguiente opcion que va con todos los compiladores siempre que se agregue lo siguiente en el makefile
+			 compilar con nvcc --expt-extended-lambda*/
+			thrust::transform(
+			devTachosManzana.begin(),devTachosManzana.end(),devEpropManzana.begin(),
+			devDescachManzana.begin(),[=]__device__ (float x,float y){return x*y;}
+			);
 				
-				//tendre el numero de tachos a descacharrar por manzana en devDescachManzana
-				int descachTot=0;
-				descachTot=thrust::reduce(devDescachManzana.begin(),devDescachManzana.end(),descachTot);
-				//el numero de tachos total a descacharrar sera la suma sobre ese vector, lo que llamaba descach
+			//tendre el numero de tachos a descacharrar por manzana en devDescachManzana
+			int descachTot=0;
+			descachTot=thrust::reduce(devDescachManzana.begin(),devDescachManzana.end(),descachTot);
+			//el numero de tachos total a descacharrar sera la suma sobre ese vector, lo que llamaba descach
     			
-				int ntachos=thrust::reduce(devTachosManzana.begin(),devTachosManzana.end());
-			    std::cout << "nro total de tachos = " << ntachos << std::endl; 
-				//calculo los indices de los tachos a descacharrar (exclusive_scan va acumulando el num de tachos por manzana)
-    			thrust::exclusive_scan(devTachosManzana.begin(),devTachosManzana.end(),devIndicesDescach.begin());
-    			std::cout << "ntachos,begin,descacharrar" << std::endl; 
+			int ntachos=thrust::reduce(devTachosManzana.begin(),devTachosManzana.end());
+			std::cout << "nro total de tachos = " << ntachos << std::endl; 
+			//calculo los indices de los tachos a descacharrar (exclusive_scan va acumulando el num de tachos por manzana)
+    		thrust::exclusive_scan(devTachosManzana.begin(),devTachosManzana.end(),devIndicesDescach.begin());
+    		std::cout << "ntachos,begin,descacharrar" << std::endl; 
     			/* for(int i=0;i<NUMEROMANZANAS;i++){
         			std::cout << devTachosManzana[i] << "," <<  devIndicesDescach[i] << "," << devDescachManzana[i] << std::endl;
     			 }*/
-				}		 
-	//El descacharrado puede ser fijo o aleatorio
-		int DiasDesc;
-		if(DESCACHFIJO)
-		{
+						 
+			//El descacharrado puede ser fijo o aleatorio
+			//int DiasDesc;
+			if(DESCACHFIJO)
+			{
 			thrust::fill(devFreqDesc.begin(),devFreqDesc.end(),TIEMPODESCACH);
-	
-		}else
-		{
-		//Ahora Dias Desc tiene que ser un vector de Ntachos elementos
-		thrust::fill(devFreqDesc.begin(),devFreqDesc.end(),1 + ran2(semilla)*2*TIEMPODESCACH);
-		DiasDesc=1 + ran2(semilla)*2*TIEMPODESCACH;      //nro al azar entre [1,14]
-		}	
-	 //Para evitar sincronizacion en el descacharrado cada tacho comenzará a descacharrar un dia aleatorio de la semana
-	thrust::fill(devStartDesc.begin(),devStartDesc.end(),121 + ran2(semilla)*6);// + ran2(semilla)*6
-	
+				for(int i=0;i<NUMEROTACHOS;i++){
+					devStartDesc[i]=ran2(semilla)*OFFSETDESCACH; //OFFSET para descacharrado no sincrónico
+					std::cout << devFreqDesc[i] << ",  Freq descacharrado" << devStartDesc[i] << ",  Comienzo descach" << std::endl;
+    			}
+			}else
+			{
+			//Ahora Dias Desc tiene que ser un vector de Ntachos elementos
+			//thrust::fill(devFreqDesc.begin(),devFreqDesc.end(),1 + ran2(semilla)*2*TIEMPODESCACH);
+			//lo de arriba no estaba bien porque me cambiaba la frecuencia de descacharrado cada dia (antes estaba
+			//fuera del loop dia=1)
+				for(int i=0;i<NUMEROTACHOS;i++){
+					devFreqDesc[i]=1 + ran2(semilla)*2*TIEMPODESCACH;
+        			//devStartDesc[i]=121 + ran2(semilla)*6;
+					devStartDesc[i]=ran2(semilla)*OFFSETDESCACH; //OFFSET para descacharrado no sincrónico entre 1 y 4 dias
+					std::cout << devFreqDesc[i] << ",  Freq descacharrado" << devStartDesc[i] << ",  Comienzo descach" << std::endl;
+    			}
+		//DiasDesc=1 + ran2(semilla)*2*TIEMPODESCACH;      //nro al azar entre [1,14]
+			}	
+	 	//Para evitar sincronizacion en el descacharrado cada tacho comenzará a descacharrar un dia aleatorio de la semana
+		//thrust::fill(devStartDesc.begin(),devStartDesc.end(),121 + ran2(semilla)*6);// + ran2(semilla)*6
+		}
+
+
 	    if(dia > 120 && dia < 320){
 		//if(dia%DiasDesc == 0 && dia > 120 && dia < 320){
 		// el siguiente kernel me saca una mascara con los indices de tachos a descacharrar (todavia no descacharra)
@@ -798,8 +812,8 @@ struct bichos{
 				    //Ahora bien, si con los nuevos supero el maximo de huevos por tacho (SAT)y (NUEVO) el tacho está disponible
 				    //if(nuevos+antiguos>SAT && dispo==0){
 				if(nuevos+antiguos>SAT && devTauTacho[m]==0){    
-						//nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
-						nuevos=0; //para imitar lo que hace Fabi que no llena el tacho cuando ve que se va a pasar
+						nuevos=SAT-antiguos;	//ponen lo que pueden en el mismo tacho
+						//nuevos=0; //para imitar lo que hace Fabi que no llena el tacho cuando ve que se va a pasar de la saturacion
 					if(TRANSFERTACHO==1) //transfiero de tacho en misma manzana
 					{
 						int manzanadeltacho;
