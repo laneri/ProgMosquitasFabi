@@ -16,6 +16,7 @@ Example code for CUDA by Karina Laneri.
 # *mosquitos-CUDA*
 CUDA code by Ana Gramajo and Karina Laneri using Struct of Arrays (SoA) for a spatially explicit agent-based model. 
 
+
 The implemented code consists of the following steps:
     (1) We define the input parameters related to the biological parameters of the species and the initial conditions of the program: number of blocks, number of buckets distributed per block, and the state of the mosquitoes. Each bucket contains one mosquito, so the initial number of mosquitoes is equivalent to the number of buckets. 
     (2) We create a Mosquito object with all the aforementioned attributes. For this purpose, we use an SoA (Struct of Arrays) to access the GPU memory efficiently and reduce the computational cost. Each array allows us to allocate a set of N data of the same type. We consider a one-dimensional array of type int[] for each attribute of the mosquito. 
